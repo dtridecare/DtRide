@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// Shared DT Ride brand. Matches the admin console (indigo primary).
+/// Shared DT Ride brand: deep navy + ride orange (matches the dtRide logo).
 /// All copy lives in strings.dart (English now, Hindi later via the same keys).
 abstract final class AppColors {
-  static const primary = Color(0xFF4F46E5);
-  static const primaryDark = Color(0xFF312E81);
+  static const primary = Color(0xFF0B3D91);
+  static const primaryDark = Color(0xFF071F52);
+  static const accent = Color(0xFFFF8A00);
   static const success = Color(0xFF10B981);
   static const warning = Color(0xFFF59E0B);
   static const danger = Color(0xFFEF4444);

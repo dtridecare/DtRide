@@ -8,17 +8,72 @@ class DtPrimaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool busy;
   final bool danger;
-  const DtPrimaryButton({super.key, required this.label, this.onPressed, this.busy = false, this.danger = false});
+  final bool accent;
+  const DtPrimaryButton({super.key, required this.label, this.onPressed, this.busy = false, this.danger = false, this.accent = false});
 
   @override
-  Widget build(BuildContext context) => ElevatedButton(
-    onPressed: (onPressed == null || busy) ? null : onPressed,
-    style: danger
-        ? ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white)
-        : null,
-    child: busy
-        ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-        : Text(label),
+  Widget build(BuildContext context) {
+    ButtonStyle? style;
+    if (danger) {
+      style = ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white);
+    } else if (accent) {
+      style = ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white);
+    }
+    return ElevatedButton(
+      onPressed: (onPressed == null || busy) ? null : onPressed,
+      style: style,
+      child: busy
+          ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+          : Text(label),
+    );
+  }
+}
+
+/// Full-bleed brand splash. Shows [image] while [load] runs (min [minShow]),
+/// then swaps to the gated home. Used by both apps with their own artwork.
+class BrandSplash extends StatefulWidget {
+  final String image;
+  final Future<Widget> Function() load;
+  final Duration minShow;
+  const BrandSplash({super.key, required this.image, required this.load, this.minShow = const Duration(milliseconds: 2200)});
+
+  @override
+  State<BrandSplash> createState() => _BrandSplashState();
+}
+
+class _BrandSplashState extends State<BrandSplash> {
+  @override
+  void initState() {
+    super.initState();
+    _go();
+  }
+
+  Future<void> _go() async {
+    final stopwatch = Stopwatch()..start();
+    Widget next;
+    try {
+      next = await widget.load();
+    } catch (_) {
+      next = const Scaffold(body: Center(child: Text('Something went wrong. Restart the app.')));
+    }
+    final remaining = widget.minShow - stopwatch.elapsed;
+    if (remaining > Duration.zero) await Future.delayed(remaining);
+    if (mounted) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => next));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: SizedBox.expand(
+      child: Image.asset(widget.image, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          color: AppColors.primaryDark,
+          alignment: Alignment.center,
+          child: const Text('DT Ride',
+              style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Colors.white)),
+        )),
+    ),
   );
 }
 

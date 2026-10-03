@@ -249,7 +249,7 @@ class _BookingScreenState extends State<BookingScreen> {
             DtPrimaryButton(label: Str.getFare, busy: _busy, onPressed: _estimate),
             if (_quote != null) ...[
               const SizedBox(height: 8),
-              DtPrimaryButton(label: Str.requestRide, busy: _busy, onPressed: _request),
+              DtPrimaryButton(label: Str.requestRide, busy: _busy, accent: true, onPressed: _request),
             ],
           ]),
         ),

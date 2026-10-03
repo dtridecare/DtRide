@@ -22,5 +22,28 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.4.1
+  flutter_launcher_icons: ^0.14.2
+
 flutter:
   uses-material-design: true
+  assets:
+    - assets/branding/
+
+# 1. Drop artwork in assets/branding/ (see README there), then run:
+#      dart run flutter_native_splash:create
+#      dart run flutter_launcher_icons
+flutter_native_splash:
+  color: "#071F52"
+  background_image: assets/branding/splash.png
+  android_12:
+    color: "#071F52"
+    image: assets/branding/icon.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/icon.png
+  adaptive_icon_background: "#071F52"
+  adaptive_icon_foreground: assets/branding/icon.png
+  remove_alpha_ios: true
