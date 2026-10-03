@@ -32,6 +32,9 @@ export default function Nav() {
   const links = mode === 'admin' ? NAV : [];
   const row = 'flex gap-4 overflow-x-auto text-sm';
 
+  // Chromeless while signed out — the login screen brings its own branding.
+  if (mode === 'signed-out' || mode === 'loading') return null;
+
   return (
     <>
       <aside className="w-60 shrink-0 bg-slate-900 text-slate-200 p-5 hidden md:block">
@@ -48,7 +51,6 @@ export default function Nav() {
           </nav>
         )}
         <div className="mt-6">
-          {mode === 'signed-out' && <a href="/login" className="text-sm text-slate-300 underline">Sign in</a>}
           {(mode === 'admin' || mode === 'user') && <SignOutButton className="btn-outline !text-slate-200 !border-slate-700 hover:!bg-slate-800 text-sm" />}
         </div>
       </aside>
@@ -57,6 +59,7 @@ export default function Nav() {
         <span className={row}>
           {links.map((n) => <a key={n.href} href={n.href} className="whitespace-nowrap">{n.label}</a>)}
         </span>
+        <span className="ml-auto"><SignOutButton className="text-xs underline" /></span>
       </header>
     </>
   );
