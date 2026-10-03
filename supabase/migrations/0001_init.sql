@@ -4,21 +4,8 @@
 create extension if not exists "pgcrypto";
 create extension if not exists "postgis";
 
--- ---------- helpers ----------
--- SECURITY DEFINER so RLS policies can call them without recursion.
-create or replace function public.is_admin() returns boolean
-language sql stable security definer set search_path = public as $$
-  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
-$$;
-
-create or replace function public.has_active_subscription(p_driver uuid)
-returns boolean language sql stable security definer set search_path = public as $$
-  select exists (
-    select 1 from public.driver_subscriptions s
-    where s.driver_id = p_driver and s.status = 'active'
-      and s.credits_used < s.credits_total and now() < s.expires_at
-  );
-$$;
+-- NOTE: helpers (is_admin, has_active_subscription) are defined after the
+-- core tables below: LANGUAGE SQL bodies are validated at CREATE time.
 
 -- ---------- core tables ----------
 create table public.profiles (
@@ -161,6 +148,22 @@ create table public.audit_log (
   action text not null, entity text, entity_id text, meta jsonb,
   created_at timestamptz not null default now()
 );
+
+-- ---------- helpers ----------
+-- SECURITY DEFINER so RLS policies can call them without recursion.
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
+$$;
+
+create or replace function public.has_active_subscription(p_driver uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.driver_subscriptions s
+    where s.driver_id = p_driver and s.status = 'active'
+      and s.credits_used < s.credits_total and now() < expires_at
+  );
+$$;
 
 -- ---------- seed config + plans ----------
 insert into public.app_config(key, value) values
