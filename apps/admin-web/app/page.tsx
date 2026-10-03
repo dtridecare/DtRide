@@ -1,4 +1,6 @@
 import { supabaseAdmin } from '../lib/supabase';
+import AdminGate from '../lib/AdminGate';
+import LoginForm from '../lib/LoginForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +23,7 @@ export default async function Home() {
   const values: Record<string, number | null> = { kyc: pendingKyc, online, subs: activeSubs };
 
   return (
+    <AdminGate signedOut={<LoginForm />}>
     <div>
       <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
       <p className="text-sm text-slate-500 mb-6">Live platform overview — subscription model, no commission.</p>
@@ -54,5 +57,6 @@ export default async function Home() {
         {(recent ?? []).length === 0 && <p className="p-5 text-sm text-slate-500">No rides yet.</p>}
       </div>
     </div>
+    </AdminGate>
   );
 }
