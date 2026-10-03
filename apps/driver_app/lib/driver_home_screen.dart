@@ -5,6 +5,7 @@ import 'login_screen.dart';
 import 'plans_screen.dart';
 import 'requests_screen.dart';
 import 'earnings_screen.dart';
+import 'kyc_screen.dart';
 import 'notifications_screen.dart';
 import 'driver_background.dart';
 
@@ -164,7 +165,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     ),
                   ),
                   if (_error != null) DtBanner(kind: BannerKind.error, title: _error!),
-                  if (_kyc!.blocked)
+                  if (!_kyc!.approved)
+                    DtBanner(
+                      kind: BannerKind.warn,
+                      title: _kyc!.kycStatus == 'rejected'
+                          ? 'KYC rejected — please resubmit'
+                          : 'KYC pending approval'),
+                  if (!_kyc!.approved) ...[
+                    const SizedBox(height: 8),
+                    DtPrimaryButton(
+                      label: _kyc!.kycStatus == 'rejected' ? 'Resubmit KYC' : 'Complete KYC',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const KycScreen())).then((_) => _load()),
+                    ),
+                  ],                  if (_kyc!.blocked)
                     DtBanner(
                       kind: BannerKind.error,
                       title: 'Blocked until ${_kyc!.blockedUntil!.toLocal()}'.split('.').first,

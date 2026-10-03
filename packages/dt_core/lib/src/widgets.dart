@@ -196,3 +196,97 @@ void showDtMessage(BuildContext context, String text, {bool error = false}) {
     behavior: SnackBarBehavior.floating,
   ));
 }
+
+/// One onboarding slide.
+class OnboardSlide {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  const OnboardSlide({required this.icon, required this.title, required this.subtitle});
+}
+
+/// Swipeable intro with brand header, dots and Get started CTA.
+class DtOnboarding extends StatefulWidget {
+  final List<OnboardSlide> slides;
+  final String cta;
+  final VoidCallback onDone;
+  const DtOnboarding({super.key, required this.slides, required this.cta, required this.onDone});
+
+  @override
+  State<DtOnboarding> createState() => _DtOnboardingState();
+}
+
+class _DtOnboardingState extends State<DtOnboarding> {
+  final _ctl = PageController();
+  int _i = 0;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Column(children: [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(24, 72, 24, 40),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primaryDark, AppColors.primary],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+        ),
+        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('DT Ride', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white)),
+          Text('Your city, your fare.', style: TextStyle(color: Colors.white70)),
+        ]),
+      ),
+      Expanded(
+        child: PageView.builder(
+          controller: _ctl,
+          itemCount: widget.slides.length,
+          onPageChanged: (i) => setState(() => _i = i),
+          itemBuilder: (context, i) {
+            final s = widget.slides[i];
+            return Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                CircleAvatar(
+                  radius: 44, backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                  child: Icon(s.icon, size: 44, color: AppColors.primary)),
+                const SizedBox(height: 24),
+                Text(s.title, textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                Text(s.subtitle, textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.muted)),
+              ]),
+            );
+          },
+        ),
+      ),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < widget.slides.length; i++)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              height: 8, width: i == _i ? 24 : 8,
+              decoration: BoxDecoration(
+                color: i == _i ? AppColors.primary : Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(4)),
+            ),
+        ],
+      ),
+      Padding(
+        padding: const EdgeInsets.all(24),
+        child: DtPrimaryButton(
+          label: _i == widget.slides.length - 1 ? widget.cta : 'Next',
+          onPressed: () {
+            if (_i == widget.slides.length - 1) {
+              widget.onDone();
+            } else {
+              _ctl.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+            }
+          },
+        ),
+      ),
+    ]),
+  );
+}

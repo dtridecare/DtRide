@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'kyc_screen.dart';
+import 'profile_setup_screen.dart';
 
-/// Branded driver auth: gradient header, phone → OTP boxes.
+/// Branded driver auth: phone or email → OTP boxes → profile.
 class DriverLoginScreen extends StatefulWidget {
   const DriverLoginScreen({super.key});
   @override
@@ -11,7 +12,8 @@ class DriverLoginScreen extends StatefulWidget {
 }
 
 class _DriverLoginScreenState extends State<DriverLoginScreen> {
-  final _phone = TextEditingController();
+  bool _emailMode = false;
+  final _id = TextEditingController();
   String _otp = '';
   bool _sent = false;
   String? _error;
@@ -20,10 +22,14 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
   AuthService get _auth => AuthService(Supabase.instance.client);
 
   Future<void> _send() async {
-    if (_phone.text.trim().isEmpty) return;
+    if (_id.text.trim().isEmpty) return;
     setState(() { _busy = true; _error = null; });
     try {
-      await _auth.sendPhoneOtp(_phone.text.trim());
+      if (_emailMode) {
+        await _auth.sendEmailOtp(_id.text.trim());
+      } else {
+        await _auth.sendPhoneOtp(_id.text.trim());
+      }
       setState(() => _sent = true);
     } catch (e) {
       setState(() => _error = '$e');
@@ -39,9 +45,17 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
     }
     setState(() { _busy = true; _error = null; });
     try {
-      await _auth.verifyPhoneOtp(_phone.text.trim(), _otp);
-      await _auth.ensureProfile('driver');
-      if (mounted) {
+      if (_emailMode) {
+        await _auth.verifyEmailOtp(_id.text.trim(), _otp);
+      } else {
+        await _auth.verifyPhoneOtp(_id.text.trim(), _otp);
+      }
+      final profile = await _auth.ensureProfile('driver');
+      if (!mounted) return;
+      if ((profile.fullName ?? '').isEmpty) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const DriverProfileSetupScreen()));
+      } else {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const KycScreen()));
       }
@@ -73,9 +87,25 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
         child: ListView(padding: const EdgeInsets.all(24), children: [
           if (_error != null) DtBanner(kind: BannerKind.error, title: _error!),
           if (!_sent) ...[
-            const DtSectionLabel('Phone number'),
-            TextField(controller: _phone, keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(hintText: Str.phoneHint, prefixIcon: Icon(Icons.phone_outlined))),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('Phone'), icon: Icon(Icons.phone_outlined)),
+                ButtonSegment(value: true, label: Text('Email'), icon: Icon(Icons.email_outlined)),
+              ],
+              selected: {_emailMode},
+              onSelectionChanged: (s) => setState(() {
+                _emailMode = s.first;
+                _id.clear();
+              }),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _id,
+              keyboardType: _emailMode ? TextInputType.emailAddress : TextInputType.phone,
+              decoration: InputDecoration(
+                hintText: _emailMode ? 'you@example.com' : Str.phoneHint,
+                prefixIcon: Icon(_emailMode ? Icons.email_outlined : Icons.phone_outlined)),
+            ),
             const SizedBox(height: 16),
             DtPrimaryButton(label: Str.sendOtp, busy: _busy, onPressed: _send),
           ] else ...[
@@ -84,8 +114,8 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
             const SizedBox(height: 16),
             DtPrimaryButton(label: Str.verifyOtp, busy: _busy, onPressed: _verify),
             TextButton(
-              onPressed: _busy ? null : () => setState(() => _sent = false),
-              child: const Text('Use a different number'),
+              onPressed: _busy ? null : () => setState(() { _sent = false; _otp = ''; }),
+              child: const Text('Use a different contact'),
             ),
           ],
         ]),

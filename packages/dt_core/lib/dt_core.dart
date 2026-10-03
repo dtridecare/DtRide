@@ -17,3 +17,4 @@ export 'src/theme.dart';
 export 'src/strings.dart';
 export 'src/widgets.dart';
 export 'src/maps_adapter.dart';
+export 'src/onboarding_store.dart';

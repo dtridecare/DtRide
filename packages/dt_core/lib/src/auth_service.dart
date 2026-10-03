@@ -32,6 +32,15 @@ class AuthService {
     return DtProfile.fromJson(row);
   }
 
+  /// Signup details: full name (+ optional avatar url).
+  Future<DtProfile> updateProfile({required String fullName}) async {
+    final user = db.auth.currentUser;
+    if (user == null) throw StateError('not signed in');
+    await db.from('profiles').update({'full_name': fullName}).eq('id', user.id);
+    final row = await db.from('profiles').select().eq('id', user.id).single();
+    return DtProfile.fromJson(row);
+  }
+
   Future<DtProfile?> currentProfile() async {
     final user = db.auth.currentUser;
     if (user == null) return null;
