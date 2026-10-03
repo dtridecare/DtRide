@@ -20,13 +20,17 @@ class AuthService {
       db.auth.verifyOTP(type: OtpType.email, email: email, token: token);
 
   /// Ensures profile + driver rows exist (trigger normally handles this).
+  /// drivers insert is ON CONFLICT DO NOTHING: self-service UPDATE on
+  /// drivers is forbidden (would allow KYC self-approval), so we never
+  /// attempt it — submit_kyc / decide_kyc RPCs own all writes.
   Future<DtProfile> ensureProfile(String role) async {
     final user = db.auth.currentUser;
     if (user == null) throw StateError('not signed in');
     await db.from('profiles').upsert(
         {'id': user.id, 'role': role, 'phone': user.phone});
     if (role == 'driver') {
-      await db.from('drivers').upsert({'id': user.id});
+      await db.from('drivers').upsert(
+          {'id': user.id}, onConflict: 'id', ignoreDuplicates: true);
     }
     final row = await db.from('profiles').select().eq('id', user.id).single();
     return DtProfile.fromJson(row);

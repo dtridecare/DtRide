@@ -38,12 +38,12 @@ flutter_native_splash:
   background_image: assets/branding/splash.png
   android_12:
     color: "#071F52"
-    image: assets/branding/icon.png
+    image: assets/branding/logo.png
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/branding/icon.png
+  image_path: assets/branding/logo.png
   adaptive_icon_background: "#071F52"
-  adaptive_icon_foreground: assets/branding/icon.png
+  adaptive_icon_foreground: assets/branding/logo.png
   remove_alpha_ios: true
