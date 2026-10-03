@@ -46,7 +46,8 @@ export default function RidesPage() {
       <p className="text-sm text-slate-500 mb-6">Auto-refreshes on every ride event.</p>
       {err && <p className="text-red-600 text-sm mb-4">{err}</p>}
       <div className="card !p-0 overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px]">
           <thead><tr><th className="th">Ride</th><th className="th">Status</th><th className="th">Cat / Mode</th><th className="th">Fare</th><th className="th">Flag</th><th className="th">Started</th></tr></thead>
           <tbody>
             {rides.map((r) => (
@@ -63,6 +64,7 @@ export default function RidesPage() {
             ))}
           </tbody>
         </table>
+        </div>
         {rides.length === 0 && <p className="p-5 text-sm text-slate-500">No live rides.</p>}
       </div>
     </AdminGate>

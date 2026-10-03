@@ -40,7 +40,8 @@ export default async function Home() {
       </div>
       <div className="card !p-0 overflow-hidden">
         <div className="px-5 py-4 font-semibold border-b border-slate-100">Recent rides</div>
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px]">
           <thead><tr><th className="th">Ride</th><th className="th">Status</th><th className="th">Cat / Mode</th><th className="th">Fare</th><th className="th">Created</th></tr></thead>
           <tbody>
             {(recent ?? []).map((r: { id: string; status: string; category: string; mode: string; fare_estimate_rs: number | null; created_at: string }) => (
@@ -54,6 +55,7 @@ export default async function Home() {
             ))}
           </tbody>
         </table>
+        </div>
         {(recent ?? []).length === 0 && <p className="p-5 text-sm text-slate-500">No rides yet.</p>}
       </div>
     </div>

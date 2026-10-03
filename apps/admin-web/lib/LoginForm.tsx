@@ -88,7 +88,7 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-3rem)] -m-6 flex">
+    <div className="min-h-[calc(100vh-2rem)] md:min-h-[calc(100vh-3rem)] -m-4 md:-m-6 flex">
       {/* Brand panel */}
       <div className="hidden lg:flex w-[46%] flex-col justify-between bg-slate-950 text-white p-12 relative overflow-hidden">
         <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-indigo-600/30 blur-3xl" />

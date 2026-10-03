@@ -44,7 +44,8 @@ export default function PlansPage() {
       <p className="text-sm text-slate-500 mb-6">Price per vehicle category — drivers buy ride credits.</p>
       {err && <p className="text-red-600 text-sm mb-4">{err}</p>}
       <div className="card !p-0 overflow-hidden mb-6">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px]">
           <thead><tr><th className="th">Plan</th><th className="th">Category</th><th className="th">Rides</th><th className="th">Price</th><th className="th">Validity</th><th className="th">Status</th><th className="th"></th></tr></thead>
           <tbody>
             {plans.map((p) => (
@@ -64,6 +65,7 @@ export default function PlansPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
       <div className="card">
         <div className="font-semibold mb-3">New plan</div>
