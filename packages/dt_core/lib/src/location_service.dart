@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'booking_service.dart';
 import 'config.dart';
@@ -26,6 +27,15 @@ class LocationService {
     }
     return Geolocator.isLocationServiceEnabled();
   }
+
+  /// Notification permission, independent of Firebase config.
+  /// Returns true if granted or skipped as limited; false if denied.
+  Future<bool> ensureNotificationPermission() async {
+    final s = await ph.Permission.notification.request();
+    return s.isGranted || s.isLimited;
+  }
+
+  Future<bool> openSettings() => ph.openAppSettings();
 
   Future<Position> current() => Geolocator.getCurrentPosition();
 

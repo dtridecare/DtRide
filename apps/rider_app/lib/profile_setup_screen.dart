@@ -25,8 +25,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       await AuthService(Supabase.instance.client)
           .updateProfile(fullName: _name.text.trim());
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const RiderHomeScreen()));
+        Navigator.of(context).pushReplacement(MaterialPageRoute(
+          builder: (ctx) => DtPermissionsScreen(
+            onDone: () => Navigator.of(ctx).pushReplacement(
+              MaterialPageRoute(builder: (_) => const RiderHomeScreen())),
+          ),
+        ));
       }
     } catch (e) {
       setState(() => _error = '$e');

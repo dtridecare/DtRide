@@ -13,8 +13,11 @@ class AuthService {
   Future<AuthResponse> verifyPhoneOtp(String phone, String token) =>
       db.auth.verifyOTP(type: OtpType.sms, phone: phone, token: token);
 
+  /// Email OTP as a 6-digit code (no redirect → GoTrue sends the Token,
+  /// not just the link). Explicit shouldCreateUser so first-time
+  /// rider/driver signups register instead of erroring.
   Future<void> sendEmailOtp(String email) =>
-      db.auth.signInWithOtp(email: email);
+      db.auth.signInWithOtp(email: email, shouldCreateUser: true);
 
   Future<AuthResponse> verifyEmailOtp(String email, String token) =>
       db.auth.verifyOTP(type: OtpType.email, email: email, token: token);

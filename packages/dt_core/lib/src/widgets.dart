@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 import 'theme.dart';
 
 /// Shared app-grade widgets used by rider + driver apps.
@@ -250,6 +252,94 @@ void showDtMessage(BuildContext context, String text, {bool error = false}) {
     backgroundColor: error ? AppColors.danger : AppColors.ink,
     behavior: SnackBarBehavior.floating,
   ));
+}
+
+/// First-run permission gate: location + notifications with plain-language
+/// reasons, skip allowed, settings shortcut when permanently denied.
+class DtPermissionsScreen extends StatefulWidget {
+  final VoidCallback onDone;
+  const DtPermissionsScreen({super.key, required this.onDone});
+
+  @override
+  State<DtPermissionsScreen> createState() => _DtPermissionsScreenState();
+}
+
+class _DtPermissionsScreenState extends State<DtPermissionsScreen> {
+  bool _loc = false;
+  bool _notif = false;
+  bool _locBlocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final loc = await Geolocator.checkPermission();
+    final notif = await ph.Permission.notification.status;
+    if (!mounted) return;
+    setState(() {
+      _loc = loc == LocationPermission.always || loc == LocationPermission.whileInUse;
+      _locBlocked = loc == LocationPermission.deniedForever;
+      _notif = notif.isGranted || notif.isLimited;
+    });
+  }
+
+  Future<void> _askLocation() async {
+    var p = await Geolocator.checkPermission();
+    if (p == LocationPermission.denied) p = await Geolocator.requestPermission();
+    if (p == LocationPermission.deniedForever) {
+      await ph.openAppSettings();
+    }
+    _refresh();
+  }
+
+  Future<void> _askNotif() async {
+    final s = await ph.Permission.notification.request();
+    if (s.isPermanentlyDenied) await ph.openAppSettings();
+    _refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Permissions')),
+    body: ListView(padding: const EdgeInsets.all(20), children: [
+      Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: _loc ? Colors.green.shade50 : AppColors.primary.withValues(alpha: 0.12),
+            child: Icon(Icons.my_location, color: _loc ? Colors.green : AppColors.primary),
+          ),
+          title: const Text('Location', style: TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: const Text('Find nearby rides and share live trip tracking.'),
+          trailing: _loc
+              ? const Icon(Icons.check_circle, color: Colors.green)
+              : DtPrimaryButton(
+                  label: _locBlocked ? 'Settings' : 'Allow',
+                  onPressed: _askLocation),
+        ),
+      ),
+      Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: _notif ? Colors.green.shade50 : AppColors.primary.withValues(alpha: 0.12),
+            child: Icon(Icons.notifications_outlined, color: _notif ? Colors.green : AppColors.primary),
+          ),
+          title: const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: const Text('Ride status, offers and credit reminders.'),
+          trailing: _notif
+              ? const Icon(Icons.check_circle, color: Colors.green)
+              : DtPrimaryButton(label: 'Allow', onPressed: _askNotif),
+        ),
+      ),
+      const SizedBox(height: 8),
+      const Text('You can change these anytime in Settings. The app works with reduced features if you skip.',
+          style: TextStyle(fontSize: 12, color: AppColors.muted)),
+      const SizedBox(height: 12),
+      DtPrimaryButton(label: 'Continue', accent: true, onPressed: widget.onDone),
+    ]),
+  );
 }
 
 /// One onboarding slide.

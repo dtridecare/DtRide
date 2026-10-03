@@ -27,6 +27,7 @@ class _BookingScreenState extends State<BookingScreen> {
   List<LatLng> _route = [];
   FareQuote? _quote;
   int _discount = 0;
+  bool _pickupActive = true;
   String? _error;
   bool _busy = false;
 
@@ -36,7 +37,29 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
-    Geolocator.getCurrentPosition().then((p) {
+    LocationService(Supabase.instance.client).ensurePermission().then((ok) {
+      if (!mounted) return;
+      if (!ok) {
+        setState(() => _error =
+            'Location is off — allow access for GPS pickup, or type the address / tap the map.');
+        return;
+      }
+      Geolocator.getCurrentPosition().then((p) {
+        if (!mounted) return;
+        setState(() {
+          _me = LatLng(p.latitude, p.longitude);
+          _from = _me;
+          _pickup.text = 'Current location';
+        });
+        _mapCtl.move(_me!, 14);
+      }).catchError((_) => null);
+    });
+  }
+
+  Future<void> _useCurrent() async {
+    setState(() { _busy = true; _error = null; });
+    try {
+      final p = await Geolocator.getCurrentPosition();
       if (!mounted) return;
       setState(() {
         _me = LatLng(p.latitude, p.longitude);
@@ -44,7 +67,25 @@ class _BookingScreenState extends State<BookingScreen> {
         _pickup.text = 'Current location';
       });
       _mapCtl.move(_me!, 14);
-    }).catchError((_) => null);
+    } catch (_) {
+      setState(() => _error = 'Could not get GPS fix — allow location access or type the pickup.');
+    } finally {
+      setState(() => _busy = false);
+    }
+  }
+
+  void _onMapTap(LatLng p) {
+    setState(() {
+      if (_pickupActive) {
+        _from = p;
+        _pickup.text = '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}';
+      } else {
+        _to = p;
+        _drop.text = '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}';
+      }
+      _quote = null;
+      _discount = 0;
+    });
   }
 
   Future<void> _estimate() async {
@@ -55,21 +96,32 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() { _busy = true; _error = null; _quote = null; _discount = 0; _route = []; });
     try {
       final maps = OsmAdapter();
-      final a = _from != null && _pickup.text.trim() == 'Current location'
-          ? (lat: _from!.latitude, lon: _from!.longitude, label: 'Current location')
-          : await maps.geocode(_pickup.text.trim());
-      final b = await maps.geocode(_drop.text.trim());
+      LatLng from;
+      if (_from != null && (_pickup.text.trim() == 'Current location' || _isCoords(_pickup.text.trim()))) {
+        from = _from!;
+      } else {
+        final a = await maps.geocode(_pickup.text.trim());
+        from = LatLng(a.lat, a.lon);
+        _pickup.text = a.label;
+      }
+      LatLng to;
+      if (_to != null && _isCoords(_drop.text.trim())) {
+        to = _to!;
+      } else {
+        final b = await maps.geocode(_drop.text.trim());
+        to = LatLng(b.lat, b.lon);
+        _drop.text = b.label;
+      }
       final q = await _fare.quote(
-        fromLat: a.lat, fromLon: a.lon, toLat: b.lat, toLon: b.lon, category: _category);
-      final r = await maps.route(a.lat, a.lon, b.lat, b.lon);
+        fromLat: from.latitude, fromLon: from.longitude,
+        toLat: to.latitude, toLon: to.longitude, category: _category);
+      final r = await maps.route(from.latitude, from.longitude, to.latitude, to.longitude);
       final pts = PolylinePoints().decodePolyline(r.polyline);
       setState(() {
-        _from = LatLng(a.lat, a.lon);
-        _to = LatLng(b.lat, b.lon);
+        _from = from;
+        _to = to;
         _quote = q;
         _route = [for (final p in pts) LatLng(p.latitude, p.longitude)];
-        _pickup.text = a.label;
-        _drop.text = b.label;
       });
       _mapCtl.fitCamera(CameraFit.bounds(
         bounds: LatLngBounds(_from!, _to!), padding: const EdgeInsets.all(80)));
@@ -79,6 +131,9 @@ class _BookingScreenState extends State<BookingScreen> {
       setState(() => _busy = false);
     }
   }
+
+  bool _isCoords(String s) =>
+      RegExp(r'^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$').hasMatch(s);
 
   Future<void> _applyCoupon() async {
     if (_quote == null || _coupon.text.trim().isEmpty) return;
@@ -131,10 +186,7 @@ class _BookingScreenState extends State<BookingScreen> {
         options: MapOptions(
           initialCenter: _me ?? const LatLng(28.6139, 77.2090),
           initialZoom: 13,
-          onTap: (_, p) => setState(() {
-            _to = p;
-            _drop.text = '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}';
-          }),
+          onTap: (_, p) => _onMapTap(p),
         ),
         children: [
           TileLayer(
@@ -168,12 +220,25 @@ class _BookingScreenState extends State<BookingScreen> {
             Text(Str.whereTo, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 12),
             TextField(controller: _pickup,
+              onTap: () => setState(() => _pickupActive = true),
+              onChanged: (_) => _from = null,
               decoration: const InputDecoration(labelText: Str.pickupHint, prefixIcon: Icon(Icons.my_location, color: Colors.green))),
-            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _busy ? null : _useCurrent,
+                icon: const Icon(Icons.gps_fixed, size: 16),
+                label: const Text(Str.useCurrent, style: TextStyle(fontSize: 12)),
+              ),
+            ),
             TextField(controller: _drop,
+              onTap: () => setState(() => _pickupActive = false),
+              onChanged: (_) => _to = null,
               decoration: const InputDecoration(labelText: Str.dropHint, prefixIcon: Icon(Icons.place_outlined, color: Colors.red))),
             const SizedBox(height: 4),
-            const Text('Tip: tap the map to drop a pin.', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+            Text(
+              _pickupActive ? 'Tip: tap the map to set pickup.' : 'Tip: tap the map to set drop.',
+              style: const TextStyle(fontSize: 12, color: AppColors.muted)),
             const SizedBox(height: 12),
             const DtSectionLabel('Vehicle'),
             SizedBox(

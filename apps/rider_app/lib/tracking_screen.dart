@@ -123,12 +123,17 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
     if (confirm != true) return;
     try {
+      final ok = await LocationService(Supabase.instance.client).ensurePermission();
+      if (!ok) throw StateError('location off');
       final pos = await Geolocator.getCurrentPosition();
       await SosService(Supabase.instance.client)
           .raiseSos(rideId: _ride.id, lon: pos.longitude, lat: pos.latitude);
       if (mounted) setState(() => _notice = 'SOS sent. Call 112 if in immediate danger.');
     } catch (e) {
-      setState(() => _error = '$e');
+      final msg = '$e';
+      setState(() => _error = msg.contains('location off')
+          ? 'SOS needs location — enable it in Settings, then retry. Meanwhile call 112.'
+          : msg);
     }
   }
 

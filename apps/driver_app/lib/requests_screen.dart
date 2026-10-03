@@ -34,7 +34,12 @@ class _RequestsScreenState extends State<RequestsScreen> {
       final reqs = await _booking.nearbyRequests(pos.longitude, pos.latitude);
       if (mounted) setState(() => _reqs = reqs);
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (!mounted) return;
+      final msg = '$e';
+      setState(() => _error = msg.toLowerCase().contains('denied') ||
+              msg.toLowerCase().contains('permission')
+          ? 'Location permission needed — enable it in the Permissions screen or system Settings, then refresh.'
+          : msg);
     }
   }
 

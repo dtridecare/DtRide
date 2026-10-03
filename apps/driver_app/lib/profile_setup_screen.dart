@@ -25,8 +25,12 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
       await AuthService(Supabase.instance.client)
           .updateProfile(fullName: _name.text.trim());
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const KycScreen()));
+        Navigator.of(context).pushReplacement(MaterialPageRoute(
+          builder: (ctx) => DtPermissionsScreen(
+            onDone: () => Navigator.of(ctx).pushReplacement(
+              MaterialPageRoute(builder: (_) => const KycScreen())),
+          ),
+        ));
       }
     } catch (e) {
       setState(() => _error = '$e');
