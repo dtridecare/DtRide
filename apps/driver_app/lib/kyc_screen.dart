@@ -4,9 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'plans_screen.dart';
 
-const categories = ['Bike', 'Auto', 'Mini', 'Sedan', 'SUV'];
+const _docs = ['license', 'rc', 'aadhaar', 'selfie'];
 
-/// Driver KYC form: vehicle details + UPI + doc uploads, then submit_kyc RPC.
+/// 3-step KYC wizard: 1 Vehicle → 2 Documents + UPI → 3 Review & submit.
 class KycScreen extends StatefulWidget {
   const KycScreen({super.key});
   @override
@@ -14,12 +14,13 @@ class KycScreen extends StatefulWidget {
 }
 
 class _KycScreenState extends State<KycScreen> {
+  int _step = 0;
   String _category = 'Mini';
   final _upi = TextEditingController();
   final _plate = TextEditingController();
   final _make = TextEditingController();
   final _model = TextEditingController();
-  final List<String> _uploads = [];
+  final Set<String> _uploads = {};
   String? _error;
   bool _busy = false;
   DriverKyc? _kyc;
@@ -46,8 +47,8 @@ class _KycScreenState extends State<KycScreen> {
     setState(() { _busy = true; _error = null; });
     try {
       final bytes = await img.readAsBytes();
-      final path = await _kycSvc.uploadDoc(bytes, '$doc-${DateTime.now().millisecondsSinceEpoch}.jpg');
-      setState(() => _uploads.add(path));
+      await _kycSvc.uploadDoc(bytes, '$doc-${DateTime.now().millisecondsSinceEpoch}.jpg');
+      setState(() => _uploads.add(doc));
     } catch (e) {
       setState(() => _error = '$e');
     } finally {
@@ -56,6 +57,10 @@ class _KycScreenState extends State<KycScreen> {
   }
 
   Future<void> _submit() async {
+    if (_plate.text.trim().isEmpty || _upi.text.trim().isEmpty) {
+      setState(() => _error = 'Number plate and UPI ID are required.');
+      return;
+    }
     setState(() { _busy = true; _error = null; });
     try {
       await _kycSvc.submit(
@@ -65,9 +70,7 @@ class _KycScreenState extends State<KycScreen> {
         make: _make.text.trim().isEmpty ? null : _make.text.trim(),
         model: _model.text.trim().isEmpty ? null : _model.text.trim(),
       );
-      final k = await _kycSvc.getKyc();
       if (mounted) {
-        setState(() => _kyc = k);
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const PlansScreen()));
       }
@@ -80,30 +83,108 @@ class _KycScreenState extends State<KycScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Driver KYC')),
-    body: ListView(padding: const EdgeInsets.all(20), children: [
-      if (_kyc != null) Chip(label: Text('Status: ${_kyc!.kycStatus}')),
-      DropdownButtonFormField<String>(
-        initialValue: _category,
-        items: [for (final c in categories) DropdownMenuItem(value: c, child: Text(c))],
-        onChanged: (v) => setState(() => _category = v ?? 'Mini'),
-        decoration: const InputDecoration(labelText: 'Vehicle category'),
-      ),
-      TextField(controller: _plate, decoration: const InputDecoration(labelText: 'Number plate *')),
-      TextField(controller: _make, decoration: const InputDecoration(labelText: 'Make')),
-      TextField(controller: _model, decoration: const InputDecoration(labelText: 'Model')),
-      TextField(controller: _upi, decoration: const InputDecoration(labelText: 'Your UPI ID (riders pay here) *')),
-      const SizedBox(height: 12),
-      Wrap(spacing: 8, children: [
-        for (final d in ['license', 'rc', 'aadhaar', 'selfie'])
-          ElevatedButton(onPressed: _busy ? null : () => _pickAndUpload(d), child: Text('Upload $d')),
-      ]),
-      Text('Uploaded: ${_uploads.length} docs'),
-      if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-      const SizedBox(height: 12),
-      ElevatedButton(
-        onPressed: _busy ? null : _submit,
-        child: Text(_busy ? '...' : 'Submit KYC'),
+    appBar: AppBar(title: const Text('Driver onboarding')),
+    body: Column(children: [
+      if (_kyc != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: DtBanner(
+            kind: _kyc!.approved ? BannerKind.success : BannerKind.info,
+            title: 'KYC status: ${_kyc!.kycStatus}',
+            subtitle: _kyc!.notes),
+        ),
+      if (_error != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: DtBanner(kind: BannerKind.error, title: _error!),
+        ),
+      Expanded(
+        child: Stepper(
+          currentStep: _step,
+          onStepTapped: (i) => setState(() => _step = i),
+          onStepContinue: () {
+            if (_step < 2) {
+              setState(() => _step++);
+            } else {
+              _submit();
+            }
+          },
+          onStepCancel: () {
+            if (_step > 0) setState(() => _step--);
+          },
+          controlsBuilder: (context, details) => Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Row(children: [
+              Expanded(
+                child: DtPrimaryButton(
+                  label: _step == 2 ? (_busy ? 'Submitting…' : 'Submit KYC') : 'Continue',
+                  busy: _busy,
+                  onPressed: details.onStepContinue,
+                ),
+              ),
+              if (_step > 0) ...[
+                const SizedBox(width: 8),
+                TextButton(onPressed: details.onStepCancel, child: const Text('Back')),
+              ],
+            ]),
+          ),
+          steps: [
+            Step(
+              title: const Text('Vehicle'),
+              isActive: _step >= 0,
+              content: Column(children: [
+                DropdownButtonFormField<String>(
+                  initialValue: _category,
+                  items: [for (final c in VehicleCategory.all) DropdownMenuItem(value: c.id, child: Text(c.label))],
+                  onChanged: (v) => setState(() => _category = v ?? 'Mini'),
+                  decoration: const InputDecoration(labelText: 'Vehicle category', prefixIcon: Icon(Icons.directions_car)),
+                ),
+                const SizedBox(height: 8),
+                TextField(controller: _plate,
+                  decoration: const InputDecoration(labelText: 'Number plate *', prefixIcon: Icon(Icons.confirmation_number_outlined))),
+                const SizedBox(height: 8),
+                TextField(controller: _make, decoration: const InputDecoration(labelText: 'Make')),
+                const SizedBox(height: 8),
+                TextField(controller: _model, decoration: const InputDecoration(labelText: 'Model')),
+              ]),
+            ),
+            Step(
+              title: const Text('Documents & payout'),
+              isActive: _step >= 1,
+              content: Column(children: [
+                Wrap(
+                  spacing: 8, runSpacing: 8,
+                  children: [
+                    for (final d in _docs)
+                      FilterChip(
+                        label: Text(d),
+                        selected: _uploads.contains(d),
+                        avatar: _uploads.contains(d)
+                            ? const Icon(Icons.check_circle, size: 18)
+                            : const Icon(Icons.upload_file_outlined, size: 18),
+                        onSelected: (_) => _busy ? null : _pickAndUpload(d),
+                      ),
+                  ],
+                ),
+                Text('${_uploads.length} of ${_docs.length} uploaded',
+                    style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                const SizedBox(height: 8),
+                TextField(controller: _upi,
+                  decoration: const InputDecoration(
+                    labelText: 'Your UPI ID *', hintText: 'name@upi',
+                    prefixIcon: Icon(Icons.payments_outlined))),
+                const Text('Riders pay directly to this UPI.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
+              ]),
+            ),
+            const Step(
+              title: Text('Review'),
+              content: Text(
+                'Submit to send your application for review. Approval usually takes under a day — '
+                'you can then buy a subscription plan and go online.'),
+            ),
+          ],
+        ),
       ),
     ]),
   );

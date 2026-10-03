@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'home_screen.dart';
 
-/// Rider phone-OTP login. Ensures a `rider` profile row on success.
+/// Branded rider auth: gradient header, phone → OTP boxes.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
@@ -12,7 +12,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _phone = TextEditingController();
-  final _otp = TextEditingController();
+  String _otp = '';
   bool _sent = false;
   String? _error;
   bool _busy = false;
@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   AuthService get _auth => AuthService(Supabase.instance.client);
 
   Future<void> _send() async {
+    if (_phone.text.trim().isEmpty) return;
     setState(() { _busy = true; _error = null; });
     try {
       await _auth.sendPhoneOtp(_phone.text.trim());
@@ -32,9 +33,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _verify() async {
+    if (_otp.length < 6) {
+      setState(() => _error = 'Enter the OTP.');
+      return;
+    }
     setState(() { _busy = true; _error = null; });
     try {
-      await _auth.verifyPhoneOtp(_phone.text.trim(), _otp.text.trim());
+      await _auth.verifyPhoneOtp(_phone.text.trim(), _otp);
       await _auth.ensureProfile('rider');
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -49,22 +54,42 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DT Ride Rider — Login')),
-    body: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(children: [
-        TextField(controller: _phone, keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(labelText: 'Phone (+91...)')),
-        if (_sent)
-          TextField(controller: _otp, keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'OTP')),
-        const SizedBox(height: 16),
-        if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-        ElevatedButton(
-          onPressed: _busy ? null : (_sent ? _verify : _send),
-          child: Text(_busy ? '...' : (_sent ? 'Verify OTP' : 'Send OTP')),
+    body: Column(children: [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(24, 72, 24, 32),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primaryDark, AppColors.primary],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
         ),
-      ]),
-    ),
+        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('DT Ride', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white)),
+          SizedBox(height: 4),
+          Text(Str.riderTagline, style: TextStyle(color: Colors.white70, fontSize: 14)),
+        ]),
+      ),
+      Expanded(
+        child: ListView(padding: const EdgeInsets.all(24), children: [
+          if (_error != null) DtBanner(kind: BannerKind.error, title: _error!),
+          if (!_sent) ...[
+            const DtSectionLabel('Phone number'),
+            TextField(controller: _phone, keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(hintText: Str.phoneHint, prefixIcon: Icon(Icons.phone_outlined))),
+            const SizedBox(height: 16),
+            DtPrimaryButton(label: Str.sendOtp, busy: _busy, onPressed: _send),
+          ] else ...[
+            const DtSectionLabel('Enter OTP'),
+            DtOtpBoxes(value: _otp, onChange: (v) => setState(() => _otp = v)),
+            const SizedBox(height: 16),
+            DtPrimaryButton(label: Str.verifyOtp, busy: _busy, onPressed: _verify),
+            TextButton(
+              onPressed: _busy ? null : () => setState(() => _sent = false),
+              child: const Text('Use a different number'),
+            ),
+          ],
+        ]),
+      ),
+    ]),
   );
 }

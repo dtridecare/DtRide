@@ -6,8 +6,7 @@ import 'package:dt_core/dt_core.dart';
 
 const _ratingTags = ['Polite', 'Clean car', 'Safe driving', 'On time', 'Rash driving', 'Overcharged'];
 
-/// Live ride status for the rider: OTP to share, driver assignment,
-/// counter-offers in bidding mode, cancel before OTP.
+/// Live ride status: status banner, OTP card, offers, SOS, rating.
 class TrackingScreen extends StatefulWidget {
   final Ride ride;
   final String? otp;
@@ -58,6 +57,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
     } catch (_) {}
   }
 
+  Future<void> _checkRated() async {
+    try {
+      final done = await RatingService(Supabase.instance.client).alreadyRated(_ride.id);
+      if (mounted) setState(() => _rated = done);
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     if (_rideCh != null) Supabase.instance.client.removeChannel(_rideCh!);
@@ -75,18 +81,20 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
   }
 
-  Future<void> _checkRated() async {
-    try {
-      final done = await RatingService(Supabase.instance.client).alreadyRated(_ride.id);
-      if (mounted) setState(() => _rated = done);
-    } catch (_) {}
-  }
-
   Future<void> _regenOtp() async {
     setState(() { _error = null; _notice = null; });
     try {
       final otp = await _booking.regenerateOtp(_ride.id);
       if (mounted) setState(() { _otp = otp; _notice = 'New OTP generated'; });
+    } catch (e) {
+      setState(() => _error = '$e');
+    }
+  }
+
+  Future<void> _cancel() async {
+    try {
+      final r = await _booking.cancelRide(_ride.id);
+      if (mounted) setState(() => _ride = r);
     } catch (e) {
       setState(() => _error = '$e');
     }
@@ -126,14 +134,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
   }
 
-  Future<void> _cancel() async {
-    try {
-      final r = await _booking.cancelRide(_ride.id);
-      if (mounted) setState(() => _ride = r);
-    } catch (e) {
-      setState(() => _error = '$e');
-    }
-  }
+  Color _statusColor(RideStatus s) => switch (s) {
+    RideStatus.requested => Colors.amber.shade700,
+    RideStatus.accepted || RideStatus.arrived => Colors.blue.shade700,
+    RideStatus.started => AppColors.success,
+    RideStatus.completed => AppColors.ink,
+    _ => AppColors.danger,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -145,91 +152,119 @@ class _TrackingScreenState extends State<TrackingScreen> {
         title: Text('Ride ${_ride.status.name}'),
         actions: [
           if (active)
-            IconButton(
-              icon: const Icon(Icons.sos, color: Colors.red),
-              tooltip: 'SOS',
-              onPressed: _sos,
-            ),
+            IconButton(icon: const Icon(Icons.sos, color: Colors.redAccent),
+              tooltip: Str.sos, onPressed: _sos),
         ],
       ),
-      body: ListView(padding: const EdgeInsets.all(20), children: [
-        Text('${_ride.pickupText ?? ''} → ${_ride.dropText ?? ''}'),
-        Text('Fare ₹${_ride.fareEstimateRs ?? '?'} · ${_ride.category} · ${_ride.mode}'),
-        if (_otp != null && active)
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [AppColors.primaryDark, _statusColor(_ride.status)]),
+            borderRadius: BorderRadius.circular(20)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${_ride.pickupText ?? ''} → ${_ride.dropText ?? ''}',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text('₹${_ride.fareEstimateRs ?? '?'} · ${_ride.category} · ${_ride.mode}',
+                style: const TextStyle(color: Colors.white70)),
+          ]),
+        ),
+        if (_otp != null && active) ...[
+          const SizedBox(height: 12),
           Card(
-            color: Colors.amber.shade100,
+            color: Colors.amber.shade50,
             child: ListTile(
-              title: Text('Share OTP with driver: $_otp',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              subtitle: const Text('Driver needs this to start the ride (1 credit deducted)'),
-              trailing: IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'New OTP',
-                onPressed: (_ride.status == RideStatus.accepted ||
-                        _ride.status == RideStatus.arrived)
-                    ? _regenOtp
-                    : null,
-              ),
+              leading: const Icon(Icons.key, color: Colors.amber),
+              title: Text(_otp!,
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 6)),
+              subtitle: Text(Str.shareOtp, style: const TextStyle(fontSize: 12)),
+              trailing: IconButton(icon: const Icon(Icons.refresh), onPressed:
+                  (_ride.status == RideStatus.accepted || _ride.status == RideStatus.arrived)
+                      ? _regenOtp : null),
             ),
           ),
-        if (_notice != null) Text(_notice!, style: const TextStyle(color: Colors.green)),
-        if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-        TextButton(
-          onPressed: () => launchUrl(Uri.parse('tel:112')),
-          child: const Text('Emergency call 112'),
-        ),
-        if (_ride.mode == 'bidding' && _ride.status == RideStatus.requested) ...[
+        ],
+        if (_notice != null) ...[
           const SizedBox(height: 8),
-          const Text('Driver offers:', style: TextStyle(fontWeight: FontWeight.bold)),
+          DtBanner(kind: BannerKind.success, title: _notice!),
+        ],
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          DtBanner(kind: BannerKind.error, title: _error!),
+        ],
+        if (_ride.mode == 'bidding' && _ride.status == RideStatus.requested) ...[
+          const SizedBox(height: 12),
+          const DtSectionLabel('Driver offers'),
           for (final o in _offers)
             if (o.status == 'pending')
-              ListTile(
-                title: Text('₹${o.amountRs} (round ${o.round})'),
-                trailing: ElevatedButton(
-                  onPressed: () => _acceptOffer(o),
-                  child: const Text('Accept'),
+              Card(
+                child: ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.directions_car)),
+                  title: Text('₹${o.amountRs}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                  subtitle: Text('Round ${o.round}'),
+                  trailing: DtPrimaryButton(label: 'Accept', onPressed: () => _acceptOffer(o)),
                 ),
               ),
-          if (_offers.isEmpty) const Text('Waiting for driver offers...'),
+          if (_offers.isEmpty)
+            const Text('Waiting for driver offers…', style: TextStyle(color: AppColors.muted)),
         ],
         if (_ride.status == RideStatus.noDriverFound)
-          const Text('No drivers found. Try again with a higher bid or different category.'),
+          const DtBanner(kind: BannerKind.warn,
+              title: 'No drivers found', subtitle: 'Try a higher bid or another category.'),
         if (_ride.status == RideStatus.completed && !_rated) ...[
-          const SizedBox(height: 8),
-          const Text('Rate your driver:', style: TextStyle(fontWeight: FontWeight.bold)),
-          Row(
-            children: [
-              for (var i = 1; i <= 5; i++)
-                IconButton(
-                  icon: Icon(i <= _stars ? Icons.star : Icons.star_border),
-                  onPressed: () => setState(() => _stars = i),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(children: [
+                const Text(Str.rateDriver, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                DtStars(value: _stars, onChanged: (v) => setState(() => _stars = v)),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final t in _ratingTags)
+                      FilterChip(
+                        label: Text(t),
+                        selected: _tags.contains(t),
+                        onSelected: (s) => setState(() {
+                          if (s) {
+                            _tags.add(t);
+                          } else {
+                            _tags.remove(t);
+                          }
+                        }),
+                      ),
+                  ],
                 ),
-            ],
+                const SizedBox(height: 8),
+                DtPrimaryButton(label: 'Submit rating', onPressed: _submitRating),
+              ]),
+            ),
           ),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final t in _ratingTags)
-                FilterChip(
-                  label: Text(t),
-                  selected: _tags.contains(t),
-                  onSelected: (s) => setState(() {
-                    if (s) {
-                      _tags.add(t);
-                    } else {
-                      _tags.remove(t);
-                    }
-                  }),
-                ),
-            ],
-          ),
-          ElevatedButton(onPressed: _submitRating, child: const Text('Submit rating')),
         ],
-        if (active &&
-            (_ride.status == RideStatus.requested ||
-             _ride.status == RideStatus.accepted ||
-             _ride.status == RideStatus.arrived))
-          ElevatedButton(onPressed: _cancel, child: const Text('Cancel ride')),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => launchUrl(Uri.parse('tel:112')),
+              icon: const Icon(Icons.call),
+              label: const Text(Str.emergencyCall),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (active &&
+              (_ride.status == RideStatus.requested ||
+               _ride.status == RideStatus.accepted ||
+               _ride.status == RideStatus.arrived))
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _cancel,
+                style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+                child: const Text(Str.cancelRide),
+              ),
+            ),
+        ]),
       ]),
     );
   }

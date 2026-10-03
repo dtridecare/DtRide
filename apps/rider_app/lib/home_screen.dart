@@ -4,7 +4,7 @@ import 'package:dt_core/dt_core.dart';
 import 'booking_screen.dart';
 import 'login_screen.dart';
 
-/// Rider home (S1): profile summary. Booking map lands in S2.
+/// Rider home: greeting header, book CTA, referral card.
 class RiderHomeScreen extends StatefulWidget {
   const RiderHomeScreen({super.key});
   @override
@@ -22,7 +22,6 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Best-effort push registration (needs Firebase config files; else no-op).
     PushService(Supabase.instance.client).init();
     final c = Supabase.instance.client;
     AuthService(c).currentProfile().then((p) {
@@ -50,49 +49,81 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
     }
   }
 
+  void _book() => Navigator.of(context).push(
+    MaterialPageRoute(builder: (_) => const BookingScreen()));
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('DT Ride — Rider'), actions: [
-      IconButton(
-        icon: const Icon(Icons.logout),
-        onPressed: () async {
-          await Supabase.instance.client.auth.signOut();
-          if (context.mounted) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const LoginScreen()));
-          }
-        },
+    body: Column(children: [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primaryDark, AppColors.primary],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('DT Ride', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
+              Text(_profile == null ? '…' : 'Hi, ${_profile!.phone ?? 'rider'}',
+                  style: const TextStyle(color: Colors.white70)),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: _book,
+                style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.primary),
+                child: const Text('Book a ride'),
+              ),
+            ]),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white70),
+            onPressed: () async {
+              await Supabase.instance.client.auth.signOut();
+              if (context.mounted) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()));
+              }
+            },
+          ),
+        ]),
+      ),
+      Expanded(
+        child: ListView(padding: const EdgeInsets.all(16), children: [
+          if (_error != null) DtBanner(kind: BannerKind.error, title: _error!),
+          if (_notice != null) DtBanner(kind: BannerKind.success, title: _notice!),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Refer & earn', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const SizedBox(height: 4),
+                if (_myCode != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      border: Border.all(style: BorderStyle.solid, color: AppColors.primary),
+                      borderRadius: BorderRadius.circular(12)),
+                    child: Text(_myCode!,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 3)),
+                  ),
+                if (!_referred) ...[
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: TextField(controller: _referral,
+                      decoration: const InputDecoration(hintText: "Friend's code"))),
+                    const SizedBox(width: 8),
+                    TextButton(onPressed: _claim, child: const Text(Str.apply)),
+                  ]),
+                ] else
+                  const Text('Referral applied ✓', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ),
+        ]),
       ),
     ]),
-    body: Center(
-      child: _error != null
-          ? Text(_error!)
-          : _profile == null
-              ? const CircularProgressIndicator()
-              : Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text('Welcome ${_profile!.phone ?? _profile!.id}'),
-                  Text('Role: ${_profile!.role}'),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const BookingScreen())),
-                    child: const Text('Book a ride'),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_myCode != null) Text('Your referral code: $_myCode'),
-                  if (!_referred)
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      SizedBox(
-                        width: 140,
-                        child: TextField(controller: _referral,
-                          decoration: const InputDecoration(labelText: "Friend's code")),
-                      ),
-                      TextButton(onPressed: _claim, child: const Text('Apply')),
-                    ])
-                  else
-                    const Text('Referral applied ✓'),
-                  if (_notice != null) Text(_notice!, style: const TextStyle(color: Colors.green)),
-                ]),
-    ),
   );
 }

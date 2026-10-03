@@ -17,8 +17,9 @@ Future<void> main() async {
 class _MissingConfigApp extends StatelessWidget {
   const _MissingConfigApp();
   @override
-  Widget build(BuildContext context) => const MaterialApp(
-    home: Scaffold(
+  Widget build(BuildContext context) => MaterialApp(
+    theme: buildAppTheme(),
+    home: const Scaffold(
       body: Center(
         child: Text('Pass --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...'),
       ),
@@ -33,6 +34,7 @@ class RiderApp extends StatelessWidget {
     final session = Supabase.instance.client.auth.currentSession;
     return MaterialApp(
       title: 'DT Ride Rider',
+      theme: buildAppTheme(),
       home: session == null ? const LoginScreen() : const RiderHomeScreen(),
     );
   }

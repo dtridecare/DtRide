@@ -13,4 +13,7 @@ export 'src/coupon_service.dart';
 export 'src/referral_service.dart';
 export 'src/notification_service.dart';
 export 'src/subscription_service.dart';
+export 'src/theme.dart';
+export 'src/strings.dart';
+export 'src/widgets.dart';
 export 'src/maps_adapter.dart';
