@@ -4,6 +4,7 @@ import 'package:dt_core/dt_core.dart';
 import 'login_screen.dart';
 import 'plans_screen.dart';
 import 'requests_screen.dart';
+import 'earnings_screen.dart';
 import 'notifications_screen.dart';
 import 'driver_background.dart';
 
@@ -213,6 +214,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       ),
                     ),
                   ]),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const EarningsScreen())),
+                    icon: const Icon(Icons.account_balance_wallet_outlined),
+                    label: const Text('My earnings'),
+                  ),
                   const SizedBox(height: 8),
                   const Text(
                     'Online keeps a foreground service alive so GPS pings continue with screen off.',

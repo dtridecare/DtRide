@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
 import 'package:dt_core/dt_core.dart';
 
 const _ratingTags = ['Polite', 'Clean car', 'Safe driving', 'On time', 'Rash driving', 'Overcharged'];
@@ -27,6 +28,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
   int _stars = 5;
   final Set<String> _tags = {};
   bool _rated = false;
+  Timer? _timer;
+  int _elapsedS = 0;
 
   BookingService get _booking => BookingService(Supabase.instance.client);
 
@@ -48,6 +51,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
     if (_ride.status == RideStatus.completed) _checkRated();
     PushService(Supabase.instance.client).subscribeRide(_ride.id);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final base = _ride.createdAt ?? DateTime.now();
+      setState(() => _elapsedS = DateTime.now().difference(base).inSeconds);
+    });
   }
 
   Future<void> _loadOffers() async {
@@ -66,6 +74,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   @override
   void dispose() {
+    _timer?.cancel();
     if (_rideCh != null) Supabase.instance.client.removeChannel(_rideCh!);
     if (_offerCh != null) Supabase.instance.client.removeChannel(_offerCh!);
     super.dispose();
@@ -134,8 +143,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
   }
 
-  Color _statusColor(RideStatus s) => switch (s) {
-    RideStatus.requested => Colors.amber.shade700,
+  Color _statusColor(RideStatus s) => switch (s) {    RideStatus.requested => Colors.amber.shade700,
     RideStatus.accepted || RideStatus.arrived => Colors.blue.shade700,
     RideStatus.started => AppColors.success,
     RideStatus.completed => AppColors.ink,
@@ -170,6 +178,20 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 style: const TextStyle(color: Colors.white70)),
           ]),
         ),
+        if (_ride.status == RideStatus.requested) ...[
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const SizedBox(
+                height: 26, width: 26,
+                child: CircularProgressIndicator(strokeWidth: 3)),
+              title: const Text('Finding your driver…',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                  'Waiting ${_elapsedS ~/ 60}:${(_elapsedS % 60).toString().padLeft(2, '0')} · nearest drivers notified'),
+            ),
+          ),
+        ],
         if (_otp != null && active) ...[
           const SizedBox(height: 12),
           Card(

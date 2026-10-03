@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'booking_screen.dart';
+import 'history_screen.dart';
 import 'login_screen.dart';
 
 /// Rider home: greeting header, book CTA, referral card.
@@ -75,6 +76,11 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
                 onPressed: _book,
                 style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.primary),
                 child: const Text('Book a ride'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HistoryScreen())),
+                child: const Text('My rides', style: TextStyle(color: Colors.white70)),
               ),
             ]),
           ),

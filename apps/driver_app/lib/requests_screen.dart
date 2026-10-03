@@ -4,8 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'active_ride_screen.dart';
 
-/// Nearby open requests for this driver's category.
-/// Fixed -> Accept (first-wins claim). Bidding -> counter-offer within band.
+/// Nearby open requests: fare-first cards with category icon, trip km,
+/// pickup distance, accept / counter-offer.
 class RequestsScreen extends StatefulWidget {
   const RequestsScreen({super.key});
   @override
@@ -16,6 +16,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
   List<NearbyRequest> _reqs = [];
   final Map<String, TextEditingController> _offerCtrls = {};
   String? _error;
+  String? _notice;
   bool _busy = false;
 
   BookingService get _booking => BookingService(Supabase.instance.client);
@@ -36,6 +37,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
       if (mounted) setState(() => _error = '$e');
     }
   }
+
+  IconData _icon(String category) => VehicleCategory.all
+      .firstWhere((v) => v.id == category, orElse: () => VehicleCategory.all[2]).icon;
 
   Future<void> _accept(NearbyRequest r) async {
     setState(() { _busy = true; _error = null; });
@@ -59,10 +63,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
       setState(() => _error = 'Enter offer amount');
       return;
     }
-    setState(() { _busy = true; _error = null; });
+    setState(() { _busy = true; _error = null; _notice = null; });
     try {
       await _booking.placeOffer(r.rideId, amount);
-      if (mounted) setState(() => _error = 'Offer ₹$amount sent. Wait for rider to accept.');
+      if (mounted) setState(() => _notice = 'Offer ₹$amount sent. Stay online — the rider picks fast.');
     } catch (e) {
       setState(() => _error = '$e');
     } finally {
@@ -72,48 +76,75 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Nearby requests'), actions: [
+    appBar: AppBar(title: const Text('Ride requests'), actions: [
       IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
     ]),
-    body: ListView(padding: const EdgeInsets.all(16), children: [
-      if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-      for (final r in _reqs)
-        Card(child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${r.category} · ${r.mode} · ${r.distM} m away',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('${r.pickupText ?? ''} → ${r.dropText ?? ''}'),
-            Text('Trip ~${r.distanceM ~/ 1000} km · Est ₹${r.fareEstimate}'
-                '${r.mode == 'bidding' ? ' · rider bid ₹${r.proposedFare}' : ''}'),
-            const SizedBox(height: 8),
-            if (r.mode == 'fixed')
-              ElevatedButton(
-                onPressed: _busy ? null : () => _accept(r),
-                child: const Text('Accept'),
-              )
-            else
-              Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: _offerCtrls.putIfAbsent(
-                        r.rideId, () => TextEditingController()),
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Counter ₹'),
+    body: RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(padding: const EdgeInsets.all(16), children: [
+        if (_error != null) DtBanner(kind: BannerKind.error, title: _error!),
+        if (_notice != null) DtBanner(kind: BannerKind.success, title: _notice!),
+        for (final r in _reqs)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                    child: Icon(_icon(r.category), color: AppColors.primary),
                   ),
-                ),
-                ElevatedButton(
-                  onPressed: _busy ? null : () => _offer(r),
-                  child: const Text('Offer'),
-                ),
-              ]),
-          ]),
-        )),
-      if (_reqs.isEmpty && _error == null)
-        const Padding(
-          padding: EdgeInsets.all(24),
-          child: Center(child: Text('No open requests nearby. Pull to refresh.')),
-        ),
-    ]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('₹${r.mode == 'bidding' ? (r.proposedFare ?? r.fareEstimate) : r.fareEstimate}',
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                      Text('${r.category} · ${r.mode == 'bidding' ? 'rider bid' : 'fixed fare'} · '
+                          '${(r.distanceM / 1000).toStringAsFixed(1)} km trip',
+                          style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                    ]),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                        color: Colors.green.shade50, borderRadius: BorderRadius.circular(20)),
+                    child: Text('${r.distM} m',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: Colors.green.shade800)),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                Text('${r.pickupText ?? ''} → ${r.dropText ?? ''}',
+                    style: const TextStyle(fontSize: 13)),
+                const SizedBox(height: 12),
+                if (r.mode == 'fixed')
+                  DtPrimaryButton(label: 'Accept ride', busy: _busy, onPressed: () => _accept(r))
+                else
+                  Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _offerCtrls.putIfAbsent(
+                            r.rideId, () => TextEditingController()),
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(hintText: 'Counter ₹'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DtPrimaryButton(
+                          label: 'Offer', busy: _busy, onPressed: () => _offer(r)),
+                    ),
+                  ]),
+                ]),
+              ),
+            ),
+        if (_reqs.isEmpty && _error == null)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('No open requests nearby. Pull down to refresh.'),
+            ),
+          ),
+      ]),
+    ),
   );
 }

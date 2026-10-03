@@ -20,10 +20,10 @@ class Ride {
   final String category; final String mode;
   final String? pickupText; final String? dropText;
   final int? fareEstimateRs; final int? proposedFareRs;
-  final String? driverId;
+  final String? driverId; final DateTime? createdAt;
   const Ride({required this.id, required this.status, required this.category,
     required this.mode, this.pickupText, this.dropText,
-    this.fareEstimateRs, this.proposedFareRs, this.driverId});
+    this.fareEstimateRs, this.proposedFareRs, this.driverId, this.createdAt});
   factory Ride.fromJson(Map<String, dynamic> j) => Ride(
     id: j['id'] as String,
     status: rideStatusFromDb(j['status'] as String? ?? 'requested'),
@@ -34,6 +34,7 @@ class Ride {
     fareEstimateRs: j['fare_estimate_rs'] as int?,
     proposedFareRs: j['proposed_fare_rs'] as int?,
     driverId: j['driver_id'] as String?,
+    createdAt: j['created_at'] == null ? null : DateTime.tryParse(j['created_at'] as String),
   );
 }
 
