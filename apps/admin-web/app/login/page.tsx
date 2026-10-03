@@ -14,7 +14,7 @@ export default function LoginPage() {
     setErr('');
     const { error } = await c().auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) setErr(error.message);
     else setSent(true);
