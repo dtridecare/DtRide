@@ -1,0 +1,14 @@
+name: admin-web
+on:
+  push:
+    paths: ["apps/admin-web/**"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm --prefix apps/admin-web install
+      - run: npm --prefix apps/admin-web run lint
+      - run: npm --prefix apps/admin-web run build

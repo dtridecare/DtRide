@@ -1,0 +1,15 @@
+.dart_tool/
+.build/
+build/
+.ios/
+.android/
+*.g.dart
+*.freezed.dart
+.env
+node_modules/
+.next/
+supabase/.branches/
+supabase/.temp/
+
+# Next.js build info
+apps/admin-web/tsconfig.tsbuildinfo

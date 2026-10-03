@@ -1,0 +1,13 @@
+name: mobile
+on:
+  push:
+    paths: ["apps/**", "packages/**"]
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: dart analyze packages/dt_core
+      - run: flutter analyze apps/rider_app apps/driver_app
