@@ -12,6 +12,13 @@ type Ride = {
   created_at: string;
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  requested: 'bg-amber-100 text-amber-700',
+  accepted: 'bg-sky-100 text-sky-700',
+  arrived: 'bg-violet-100 text-violet-700',
+  started: 'bg-emerald-100 text-emerald-700',
+};
+
 export default function RidesPage() {
   const [rides, setRides] = useState<Ride[]>([]);
   const [err, setErr] = useState('');
@@ -35,18 +42,29 @@ export default function RidesPage() {
 
   return (
     <AdminGate>
-    <main>
-      <h1>Live rides</h1>
-      {err && <p style={{ color: 'red' }}>{err}</p>}
-      {rides.map((r) => (
-        <div key={r.id} style={{ border: '1px solid #ddd', padding: 12, margin: '8px 0' }}>
-          <div><b>{r.id.slice(0, 8)}</b> · {r.status} · {r.category} · {r.mode} · ₹{r.fare_estimate_rs ?? '?'}{' '}
-            {r.suspicious && <span style={{ color: 'red' }}>⚠ {r.suspicious}</span>}</div>
-          <small>{new Date(r.created_at).toLocaleString()}</small>
-        </div>
-      ))}
-      {rides.length === 0 && <p>No live rides.</p>}
-    </main>
+      <h1 className="text-2xl font-bold mb-1">Live rides</h1>
+      <p className="text-sm text-slate-500 mb-6">Auto-refreshes on every ride event.</p>
+      {err && <p className="text-red-600 text-sm mb-4">{err}</p>}
+      <div className="card !p-0 overflow-hidden">
+        <table className="w-full">
+          <thead><tr><th className="th">Ride</th><th className="th">Status</th><th className="th">Cat / Mode</th><th className="th">Fare</th><th className="th">Flag</th><th className="th">Started</th></tr></thead>
+          <tbody>
+            {rides.map((r) => (
+              <tr key={r.id}>
+                <td className="td font-mono">{r.id.slice(0, 8)}</td>
+                <td className="td"><span className={`badge ${STATUS_COLORS[r.status] ?? 'bg-slate-100 text-slate-600'}`}>{r.status}</span></td>
+                <td className="td">{r.category} · {r.mode}</td>
+                <td className="td">₹{r.fare_estimate_rs ?? '?'}</td>
+                <td className="td">{r.suspicious
+                  ? <span className="badge bg-red-100 text-red-700">⚠ {r.suspicious}</span>
+                  : <span className="text-slate-400">—</span>}</td>
+                <td className="td text-slate-500">{new Date(r.created_at).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rides.length === 0 && <p className="p-5 text-sm text-slate-500">No live rides.</p>}
+      </div>
     </AdminGate>
   );
 }

@@ -32,19 +32,26 @@ export default function KycPage() {
 
   return (
     <AdminGate>
-    <main>
-      <h1>KYC approvals</h1>
-      <input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} style={{ width: 320 }} />
-      {err && <p style={{ color: 'red' }}>{err}</p>}
-      {rows.map((r) => (
-        <div key={r.id} style={{ border: '1px solid #ddd', padding: 12, margin: '8px 0' }}>
-          <div><b>{r.id}</b> · {r.vehicle_category} · UPI {r.upi_id ?? '—'} · strikes {r.strikes}</div>
-          <button onClick={() => decide(r.id, true)}>Approve</button>{' '}
-          <button onClick={() => decide(r.id, false)}>Reject</button>
-        </div>
-      ))}
-      {rows.length === 0 && <p>No pending KYC.</p>}
-    </main>
+      <h1 className="text-2xl font-bold mb-1">KYC approvals</h1>
+      <p className="text-sm text-slate-500 mb-6">{rows.length} driver(s) waiting.</p>
+      <input className="input mb-4 w-full max-w-md" placeholder="Decision note (optional)"
+        value={note} onChange={(e) => setNote(e.target.value)} />
+      {err && <p className="text-red-600 text-sm mb-4">{err}</p>}
+      <div className="grid gap-3">
+        {rows.map((r) => (
+          <div key={r.id} className="card flex flex-wrap items-center gap-4">
+            <div className="flex-1 min-w-52">
+              <div className="font-mono text-sm">{r.id}</div>
+              <div className="text-sm text-slate-500">
+                {r.vehicle_category} · UPI {r.upi_id ?? '—'} · strikes {r.strikes}
+              </div>
+            </div>
+            <button className="btn-primary" onClick={() => decide(r.id, true)}>Approve</button>
+            <button className="btn-outline" onClick={() => decide(r.id, false)}>Reject</button>
+          </div>
+        ))}
+        {rows.length === 0 && <div className="card text-sm text-slate-500">No pending KYC.</div>}
+      </div>
     </AdminGate>
   );
 }

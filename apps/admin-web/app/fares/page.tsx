@@ -11,6 +11,13 @@ type Fare = {
   per_km_rs: number; per_min_rs: number; min_fare_rs: number;
 };
 
+const FIELDS = [
+  { k: 'base_rs', label: 'Base ₹' },
+  { k: 'per_km_rs', label: 'Per km ₹' },
+  { k: 'per_min_rs', label: 'Per min ₹' },
+  { k: 'min_fare_rs', label: 'Min fare ₹' },
+] as const;
+
 export default function FaresPage() {
   const [rows, setRows] = useState<Fare[]>([]);
   const [err, setErr] = useState('');
@@ -35,25 +42,25 @@ export default function FaresPage() {
 
   return (
     <AdminGate>
-    <main>
-      <h1>Fare config — fare = max(min, base + per_km×km + per_min×min) × surge</h1>
-      {err && <p style={{ color: 'red' }}>{err}</p>}
-      {msg && <p style={{ color: 'green' }}>{msg}</p>}
-      {rows.map((r) => (
-        <div key={r.vehicle_category} style={{ border: '1px solid #ddd', padding: 12, margin: '8px 0', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>
-          <b style={{ width: 60 }}>{r.vehicle_category}</b>
-          {(['base_rs', 'per_km_rs', 'per_min_rs', 'min_fare_rs'] as const).map((k) => (
-            <label key={k}>{k}<br />
-              <input type="number" step="any" value={r[k]}
-                onChange={(e) => setRows(rows.map((x) =>
-                  x.vehicle_category === r.vehicle_category ? { ...x, [k]: +e.target.value } : x))}
-                style={{ width: 90 }} />
-            </label>
-          ))}
-          <button onClick={() => save(r)}>Save</button>
-        </div>
-      ))}
-    </main>
+      <h1 className="text-2xl font-bold mb-1">Fare config</h1>
+      <p className="text-sm text-slate-500 mb-6">fare = max(min, base + per_km × km + per_min × min) × surge</p>
+      {err && <p className="text-red-600 text-sm mb-4">{err}</p>}
+      {msg && <p className="text-emerald-600 text-sm mb-4">{msg}</p>}
+      <div className="grid gap-3">
+        {rows.map((r) => (
+          <div key={r.vehicle_category} className="card flex flex-wrap items-end gap-3">
+            <b className="w-16">{r.vehicle_category}</b>
+            {FIELDS.map((f) => (
+              <label key={f.k} className="text-xs text-slate-500">{f.label}<br />
+                <input className="input w-24" type="number" step="any" value={r[f.k]}
+                  onChange={(e) => setRows(rows.map((x) =>
+                    x.vehicle_category === r.vehicle_category ? { ...x, [f.k]: +e.target.value } : x))} />
+              </label>
+            ))}
+            <button className="btn-primary" onClick={() => save(r)}>Save</button>
+          </div>
+        ))}
+      </div>
     </AdminGate>
   );
 }

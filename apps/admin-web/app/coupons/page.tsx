@@ -43,24 +43,30 @@ export default function CouponsPage() {
 
   return (
     <AdminGate>
-    <main>
-      <h1>Coupons — platform-funded rider discounts</h1>
-      {err && <p style={{ color: 'red' }}>{err}</p>}
-      {rows.map((c) => (
-        <div key={c.id} style={{ border: '1px solid #ddd', padding: 12, margin: '8px 0' }}>
-          <b>{c.code}</b> · −₹{c.discount_rs} · used {c.used_count}/{c.max_uses ?? '∞'} ·{' '}
-          {c.is_active ? 'active' : 'disabled'}{' '}
-          <button onClick={() => toggle(c)}>{c.is_active ? 'Disable' : 'Enable'}</button>
-        </div>
-      ))}
-      <h2>New coupon</h2>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input placeholder="CODE" value={code} onChange={(e) => setCode(e.target.value)} />
-        <input type="number" placeholder="₹ off" value={discount} onChange={(e) => setDiscount(+e.target.value)} />
-        <input type="number" placeholder="Max uses" value={maxUses} onChange={(e) => setMaxUses(+e.target.value)} />
-        <button onClick={create}>Create</button>
+      <h1 className="text-2xl font-bold mb-1">Coupons</h1>
+      <p className="text-sm text-slate-500 mb-6">Platform-funded rider discounts.</p>
+      {err && <p className="text-red-600 text-sm mb-4">{err}</p>}
+      <div className="grid gap-2 mb-6">
+        {rows.map((c) => (
+          <div key={c.id} className="card flex flex-wrap items-center gap-3">
+            <b className="font-mono">{c.code}</b>
+            <span className="text-sm">−₹{c.discount_rs} · used {c.used_count}/{c.max_uses ?? '∞'}</span>
+            <span className={`badge ${c.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+              {c.is_active ? 'active' : 'disabled'}
+            </span>
+            <button className="btn-outline !px-3 !py-1 ml-auto" onClick={() => toggle(c)}>{c.is_active ? 'Disable' : 'Enable'}</button>
+          </div>
+        ))}
       </div>
-    </main>
+      <div className="card">
+        <div className="font-semibold mb-3">New coupon</div>
+        <div className="flex flex-wrap gap-2">
+          <input className="input" placeholder="CODE" value={code} onChange={(e) => setCode(e.target.value)} />
+          <input className="input w-28" type="number" placeholder="₹ off" value={discount} onChange={(e) => setDiscount(+e.target.value)} />
+          <input className="input w-32" type="number" placeholder="Max uses" value={maxUses} onChange={(e) => setMaxUses(+e.target.value)} />
+          <button className="btn-primary" onClick={create}>Create</button>
+        </div>
+      </div>
     </AdminGate>
   );
 }

@@ -18,13 +18,13 @@ export default function AdminGate({ children }: { children: React.ReactNode }) {
     }).catch(() => setState('denied'));
   }, []);
 
-  if (state === 'loading') return <p>Checking admin access…</p>;
+  if (state === 'loading') return <div className="card text-sm text-slate-500">Checking admin access…</div>;
   if (state === 'denied') {
     return (
-      <p>
-        Admin access required. <a href="/login">Login</a> with an ops account
-        (<code>profiles.is_admin = true</code>).
-      </p>
+      <div className="card text-sm">
+        Admin access required. <a className="text-indigo-600 underline" href="/login">Login</a> with an ops
+        account (<code>profiles.is_admin = true</code>).
+      </div>
     );
   }
   return <>{children}</>;

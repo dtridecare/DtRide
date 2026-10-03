@@ -40,31 +40,47 @@ export default function PlansPage() {
 
   return (
     <AdminGate>
-    <main>
-      <h1>Subscription plans</h1>
-      {err && <p style={{ color: 'red' }}>{err}</p>}
-      {plans.map((p) => (
-        <div key={p.id} style={{ border: '1px solid #ddd', padding: 12, margin: '8px 0' }}>
-          <b>{p.name}</b> · {p.vehicle_category} · {p.ride_credits} rides · ₹{p.price_rs} · {p.validity_days}d ·{' '}
-          {p.is_active ? 'active' : 'disabled'}{' '}
-          <button onClick={() => toggle(p)}>{p.is_active ? 'Disable' : 'Enable'}</button>
-        </div>
-      ))}
-      <h2>New plan</h2>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <select value={form.vehicle_category} onChange={(e) => setForm({ ...form, vehicle_category: e.target.value })}>
-          {['Bike', 'Auto', 'Mini', 'Sedan', 'SUV'].map((c) => <option key={c}>{c}</option>)}
-        </select>
-        <input type="number" placeholder="Credits" value={form.ride_credits}
-          onChange={(e) => setForm({ ...form, ride_credits: +e.target.value })} />
-        <input type="number" placeholder="Price ₹" value={form.price_rs}
-          onChange={(e) => setForm({ ...form, price_rs: +e.target.value })} />
-        <input type="number" placeholder="Validity days" value={form.validity_days}
-          onChange={(e) => setForm({ ...form, validity_days: +e.target.value })} />
-        <button onClick={save}>Create</button>
+      <h1 className="text-2xl font-bold mb-1">Subscription plans</h1>
+      <p className="text-sm text-slate-500 mb-6">Price per vehicle category — drivers buy ride credits.</p>
+      {err && <p className="text-red-600 text-sm mb-4">{err}</p>}
+      <div className="card !p-0 overflow-hidden mb-6">
+        <table className="w-full">
+          <thead><tr><th className="th">Plan</th><th className="th">Category</th><th className="th">Rides</th><th className="th">Price</th><th className="th">Validity</th><th className="th">Status</th><th className="th"></th></tr></thead>
+          <tbody>
+            {plans.map((p) => (
+              <tr key={p.id}>
+                <td className="td font-medium">{p.name}</td>
+                <td className="td">{p.vehicle_category}</td>
+                <td className="td">{p.ride_credits}</td>
+                <td className="td">₹{p.price_rs}</td>
+                <td className="td">{p.validity_days}d</td>
+                <td className="td">
+                  <span className={`badge ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                    {p.is_active ? 'active' : 'disabled'}
+                  </span>
+                </td>
+                <td className="td"><button className="btn-outline !px-3 !py-1" onClick={() => toggle(p)}>{p.is_active ? 'Disable' : 'Enable'}</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-    </main>
+      <div className="card">
+        <div className="font-semibold mb-3">New plan</div>
+        <div className="flex flex-wrap gap-2">
+          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <select className="input" value={form.vehicle_category} onChange={(e) => setForm({ ...form, vehicle_category: e.target.value })}>
+            {['Bike', 'Auto', 'Mini', 'Sedan', 'SUV'].map((c) => <option key={c}>{c}</option>)}
+          </select>
+          <input className="input w-28" type="number" placeholder="Credits" value={form.ride_credits}
+            onChange={(e) => setForm({ ...form, ride_credits: +e.target.value })} />
+          <input className="input w-28" type="number" placeholder="Price ₹" value={form.price_rs}
+            onChange={(e) => setForm({ ...form, price_rs: +e.target.value })} />
+          <input className="input w-32" type="number" placeholder="Days" value={form.validity_days}
+            onChange={(e) => setForm({ ...form, validity_days: +e.target.value })} />
+          <button className="btn-primary" onClick={save}>Create</button>
+        </div>
+      </div>
     </AdminGate>
   );
 }

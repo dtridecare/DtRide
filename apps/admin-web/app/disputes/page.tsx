@@ -20,7 +20,6 @@ export default function DisputesPage() {
   const load = async () => {
     const c = db();
     const [r, s, t] = await Promise.all([
-      // Suspicious completions + post-start cancellations = refund candidates.
       c.from('rides').select('id,status,suspicious,driver_id')
         .or('suspicious.not.is.null,status.eq.cancelled_after_start')
         .order('created_at', { ascending: false }).limit(50),
@@ -38,7 +37,7 @@ export default function DisputesPage() {
     setErr(''); setMsg('');
     const { error } = await db().rpc('refund_ride_credit', { p_ride: id, p_note: 'admin_refund' });
     if (error) setErr(error.message);
-    else { setMsg(`Refunded 1 credit for ${id}`); load(); }
+    else { setMsg(`Refunded 1 credit for ${id.slice(0, 8)}`); load(); }
   };
 
   const resolve = async (id: string) => {
@@ -50,37 +49,48 @@ export default function DisputesPage() {
 
   return (
     <AdminGate>
-    <main>
-      <h1 style={{ color: 'red' }}>SOS feed</h1>
-      {sos.map((e) => (
-        <div key={e.id} style={{ border: '2px solid red', padding: 12, margin: '8px 0' }}>
-          <div><b>{new Date(e.created_at).toLocaleString()}</b> · user {e.user_id} · ride {e.ride_id ?? '—'}</div>
-          <div>{e.note ?? 'No note'}</div>
-        </div>
-      ))}
-      {sos.length === 0 && <p>No SOS events.</p>}
+      <h1 className="text-2xl font-bold mb-6">Disputes & safety</h1>
+      {err && <p className="text-red-600 text-sm mb-4">{err}</p>}
+      {msg && <p className="text-emerald-600 text-sm mb-4">{msg}</p>}
 
-      <h1>Disputes — refund 1 credit</h1>
-      {err && <p style={{ color: 'red' }}>{err}</p>}
-      {msg && <p style={{ color: 'green' }}>{msg}</p>}
-      {rides.map((r) => (
-        <div key={r.id} style={{ border: '1px solid #ddd', padding: 12, margin: '8px 0' }}>
-          <div><b>{r.id}</b> · {r.status} · {r.suspicious ?? 'no flag'} · driver {r.driver_id ?? '—'}</div>
-          <button onClick={() => refund(r.id)}>Refund 1 credit</button>
-        </div>
-      ))}
-      {rides.length === 0 && <p>No disputes.</p>}
+      <h2 className="font-semibold text-red-700 mb-2">🚨 SOS feed</h2>
+      <div className="grid gap-2 mb-8">
+        {sos.map((e) => (
+          <div key={e.id} className="rounded-xl border-2 border-red-300 bg-red-50 p-4 text-sm">
+            <b>{new Date(e.created_at).toLocaleString()}</b> · user <span className="font-mono">{e.user_id.slice(0, 8)}</span> · ride {e.ride_id?.slice(0, 8) ?? '—'}
+            <div>{e.note ?? 'No note'}</div>
+          </div>
+        ))}
+        {sos.length === 0 && <div className="card text-sm text-slate-500">No SOS events.</div>}
+      </div>
 
-      <h1>Support tickets</h1>
-      {tickets.map((t) => (
-        <div key={t.id} style={{ border: '1px solid #ddd', padding: 12, margin: '8px 0' }}>
-          <div><b>{t.subject}</b> · {t.status} · ride {t.ride_id ?? '—'}</div>
-          <div>{t.body ?? ''}</div>
-          {t.status !== 'resolved' && <button onClick={() => resolve(t.id)}>Mark resolved</button>}
-        </div>
-      ))}
-      {tickets.length === 0 && <p>No tickets.</p>}
-    </main>
+      <h2 className="font-semibold mb-2">Refund candidates</h2>
+      <div className="grid gap-2 mb-8">
+        {rides.map((r) => (
+          <div key={r.id} className="card flex flex-wrap items-center gap-3">
+            <span className="font-mono text-sm">{r.id.slice(0, 8)}</span>
+            <span className="badge bg-slate-100 text-slate-700">{r.status}</span>
+            <span className="text-sm text-slate-500">{r.suspicious ?? 'no flag'}</span>
+            <button className="btn-primary ml-auto" onClick={() => refund(r.id)}>Refund 1 credit</button>
+          </div>
+        ))}
+        {rides.length === 0 && <div className="card text-sm text-slate-500">No disputes.</div>}
+      </div>
+
+      <h2 className="font-semibold mb-2">Support tickets</h2>
+      <div className="grid gap-2">
+        {tickets.map((t) => (
+          <div key={t.id} className="card">
+            <div className="flex flex-wrap items-center gap-2">
+              <b>{t.subject}</b>
+              <span className={`badge ${t.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{t.status}</span>
+              {t.status !== 'resolved' && <button className="btn-outline !px-3 !py-1 ml-auto" onClick={() => resolve(t.id)}>Mark resolved</button>}
+            </div>
+            <div className="text-sm text-slate-500 mt-1">{t.body ?? ''}</div>
+          </div>
+        ))}
+        {tickets.length === 0 && <div className="card text-sm text-slate-500">No tickets.</div>}
+      </div>
     </AdminGate>
   );
 }
