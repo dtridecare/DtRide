@@ -51,12 +51,13 @@ abstract final class Str {
 /// Vehicle categories with display metadata.
 class VehicleCategory {
   final String id; final String label; final IconData icon;
-  const VehicleCategory(this.id, this.label, this.icon);
+  final int etaMin; final int seats;
+  const VehicleCategory(this.id, this.label, this.icon, this.etaMin, this.seats);
   static const all = [
-    VehicleCategory('Bike', 'Bike', Icons.two_wheeler),
-    VehicleCategory('Auto', 'Auto', Icons.electric_rickshaw),
-    VehicleCategory('Mini', 'Mini', Icons.directions_car),
-    VehicleCategory('Sedan', 'Sedan', Icons.local_taxi),
-    VehicleCategory('SUV', 'SUV', Icons.airport_shuttle),
+    VehicleCategory('Bike', 'Bike', Icons.two_wheeler, 2, 1),
+    VehicleCategory('Auto', 'Auto', Icons.electric_rickshaw, 3, 3),
+    VehicleCategory('Mini', 'Cab', Icons.directions_car, 4, 4),
+    VehicleCategory('Sedan', 'Sedan', Icons.local_taxi, 5, 4),
+    VehicleCategory('SUV', 'SUV', Icons.airport_shuttle, 7, 6),
   ];
 }

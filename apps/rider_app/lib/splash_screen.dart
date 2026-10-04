@@ -4,6 +4,7 @@ import 'package:dt_core/dt_core.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
 import 'profile_setup_screen.dart';
+import 'rider_kyc_screen.dart';
 
 /// Rider entry: brand splash while session + onboarding state resolve.
 class RiderSplash extends StatelessWidget {
@@ -68,11 +69,17 @@ class _RiderGateState extends State<RiderGate> {
     super.initState();
     AuthService(Supabase.instance.client).currentProfile().then((p) {
       if (!mounted) return;
-      setState(() {
-        _home = (p != null && (p.fullName ?? '').isNotEmpty)
-            ? const RiderHomeScreen()
-            : const ProfileSetupScreen();
-      });
+      Widget next;
+      if (p == null) {
+        next = const LoginScreen();
+      } else if ((p.fullName ?? '').isEmpty) {
+        next = const ProfileSetupScreen();
+      } else if (p.riderKycStatus != 'approved') {
+        next = const RiderKycScreen();
+      } else {
+        next = const RiderHomeScreen();
+      }
+      setState(() => _home = next);
     }).catchError((_) {
       if (mounted) setState(() => _home = const LoginScreen());
     });

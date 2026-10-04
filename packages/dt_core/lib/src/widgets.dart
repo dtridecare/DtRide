@@ -1,7 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 import 'theme.dart';
+
+/// Pack logo (black rounded square, yellow D-route).
+class DtLogo extends StatelessWidget {
+  final double size;
+  const DtLogo({super.key, this.size = 44});
+  @override
+  Widget build(BuildContext context) => SvgPicture.asset(
+    'assets/branding/logo.svg',
+    width: size, height: size,
+    placeholderBuilder: (_) => Container(
+      width: size, height: size,
+      decoration: BoxDecoration(color: AppColors.ink, borderRadius: BorderRadius.circular(size * 0.22)),
+      alignment: Alignment.center,
+      child: Text('Dt', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w900, fontSize: size * 0.4)),
+    ),
+  );
+}
 
 /// Shared app-grade widgets used by rider + driver apps.
 
@@ -11,21 +29,24 @@ class DtPrimaryButton extends StatelessWidget {
   final bool busy;
   final bool danger;
   final bool accent;
-  const DtPrimaryButton({super.key, required this.label, this.onPressed, this.busy = false, this.danger = false, this.accent = false});
+  final bool dark;
+  const DtPrimaryButton({super.key, required this.label, this.onPressed, this.busy = false, this.danger = false, this.accent = true, this.dark = false});
 
   @override
   Widget build(BuildContext context) {
     ButtonStyle? style;
     if (danger) {
       style = ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white);
-    } else if (accent) {
-      style = ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white);
+    } else if (dark) {
+      style = ElevatedButton.styleFrom(backgroundColor: AppColors.ink, foregroundColor: Colors.white);
+    } else if (!accent) {
+      style = ElevatedButton.styleFrom(backgroundColor: AppColors.surface, foregroundColor: AppColors.ink);
     }
     return ElevatedButton(
       onPressed: (onPressed == null || busy) ? null : onPressed,
       style: style,
       child: busy
-          ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+          ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5))
           : Text(label),
     );
   }
@@ -350,12 +371,14 @@ class OnboardSlide {
   const OnboardSlide({required this.icon, required this.title, required this.subtitle});
 }
 
-/// Swipeable intro with brand header, dots and Get started CTA.
+/// Swipeable intro per pack: white screen, Skip, illustration slot,
+/// dots, title, subtitle, yellow CTA.
 class DtOnboarding extends StatefulWidget {
   final List<OnboardSlide> slides;
   final String cta;
   final VoidCallback onDone;
-  const DtOnboarding({super.key, required this.slides, required this.cta, required this.onDone});
+  final VoidCallback? onSkip;
+  const DtOnboarding({super.key, required this.slides, required this.cta, required this.onDone, this.onSkip});
 
   @override
   State<DtOnboarding> createState() => _DtOnboardingState();
@@ -364,74 +387,86 @@ class DtOnboarding extends StatefulWidget {
 class _DtOnboardingState extends State<DtOnboarding> {
   final _ctl = PageController();
   int _i = 0;
+  bool _last = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _last = widget.slides.length == 1;
+  }
+
+  void _done() => widget.onDone();
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: Column(children: [
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(24, 72, 24, 40),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.primaryDark, AppColors.primary],
-            begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-        ),
-        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('DT Ride', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white)),
-          Text('Your city, your fare.', style: TextStyle(color: Colors.white70)),
+    backgroundColor: Colors.white,
+    body: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: _last
+                ? const SizedBox(height: 24)
+                : TextButton(
+                    onPressed: widget.onSkip ?? _done,
+                    child: const Text('Skip', style: TextStyle(color: AppColors.muted)),
+                  ),
+          ),
+          Expanded(
+            child: PageView.builder(
+              controller: _ctl,
+              itemCount: widget.slides.length,
+              onPageChanged: (i) => setState(() {
+                _i = i;
+                _last = i == widget.slides.length - 1;
+              }),
+              itemBuilder: (context, i) {
+                final s = widget.slides[i];
+                return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Container(
+                    height: 180, width: 180,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7), shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: Icon(s.icon, size: 84, color: AppColors.ink),
+                  ),
+                  const SizedBox(height: 28),
+                  Text(s.title, textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 8),
+                  Text(s.subtitle, textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.muted, fontSize: 14)),
+                ]);
+              },
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < widget.slides.length; i++)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  height: 6, width: i == _i ? 22 : 6,
+                  decoration: BoxDecoration(
+                    color: i == _i ? AppColors.ink : const Color(0xFFD1D5DB),
+                    borderRadius: BorderRadius.circular(3)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          DtPrimaryButton(
+            label: _last ? widget.cta : 'Next',
+            onPressed: () {
+              if (_last) {
+                _done();
+              } else {
+                _ctl.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+              }
+            },
+          ),
         ]),
       ),
-      Expanded(
-        child: PageView.builder(
-          controller: _ctl,
-          itemCount: widget.slides.length,
-          onPageChanged: (i) => setState(() => _i = i),
-          itemBuilder: (context, i) {
-            final s = widget.slides[i];
-            return Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                CircleAvatar(
-                  radius: 44, backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                  child: Icon(s.icon, size: 44, color: AppColors.primary)),
-                const SizedBox(height: 24),
-                Text(s.title, textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                Text(s.subtitle, textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.muted)),
-              ]),
-            );
-          },
-        ),
-      ),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < widget.slides.length; i++)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              height: 8, width: i == _i ? 24 : 8,
-              decoration: BoxDecoration(
-                color: i == _i ? AppColors.primary : Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(4)),
-            ),
-        ],
-      ),
-      Padding(
-        padding: const EdgeInsets.all(24),
-        child: DtPrimaryButton(
-          label: _i == widget.slides.length - 1 ? widget.cta : 'Next',
-          onPressed: () {
-            if (_i == widget.slides.length - 1) {
-              widget.onDone();
-            } else {
-              _ctl.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-            }
-          },
-        ),
-      ),
-    ]),
+    ),
   );
 }

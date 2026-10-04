@@ -1,50 +1,61 @@
 import 'package:flutter/material.dart';
 
-/// Shared DT Ride brand: deep navy + ride orange (matches the dtRide logo).
-/// All copy lives in strings.dart (English now, Hindi later via the same keys).
+/// DtRide pack tokens: ink black + taxi yellow on white.
 abstract final class AppColors {
-  static const primary = Color(0xFF0B3D91);
-  static const primaryDark = Color(0xFF071F52);
-  static const accent = Color(0xFFFF8A00);
-  static const success = Color(0xFF10B981);
-  static const warning = Color(0xFFF59E0B);
-  static const danger = Color(0xFFEF4444);
-  static const ink = Color(0xFF0F172A);
-  static const muted = Color(0xFF64748B);
-  static const canvas = Color(0xFFF1F5F9);
+  static const primary = Color(0xFF111111);
+  static const primaryDark = Color(0xFF111111);
+  static const accent = Color(0xFFFACC15);
+  static const success = Color(0xFF16A34A);
+  static const warning = Color(0xFFB45309);
+  static const danger = Color(0xFFB91C1C);
+  static const ink = Color(0xFF111111);
+  static const muted = Color(0xFF6B7280);
+  static const canvas = Color(0xFFFFFFFF);
+  static const surface = Color(0xFFF4F4F5);
+  static const border = Color(0xFFE5E7EB);
 }
 
 ThemeData buildAppTheme() {
-  const radius = BorderRadius.all(Radius.circular(14));
-  final scheme = ColorScheme.fromSeed(seedColor: AppColors.primary);
+  const radius = BorderRadius.all(Radius.circular(12));
+  final scheme = ColorScheme.fromSeed(seedColor: AppColors.accent);
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: AppColors.canvas,
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.primaryDark,
-      foregroundColor: Colors.white,
+      backgroundColor: Colors.white,
+      foregroundColor: AppColors.ink,
+      elevation: 0,
       centerTitle: false,
     ),
     cardTheme: const CardThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(20))),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+        side: BorderSide(color: AppColors.border, width: 0.5),
+      ),
       elevation: 0,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(52),
+        backgroundColor: AppColors.accent,
+        foregroundColor: AppColors.ink,
+        minimumSize: const Size.fromHeight(48),
         shape: const RoundedRectangleBorder(borderRadius: radius),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
-      border: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: Colors.grey.shade300)),
-      enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: Colors.grey.shade300)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: AppColors.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: AppColors.border)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: radius, borderSide: const BorderSide(color: AppColors.ink, width: 2)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    ),
+    chipTheme: const ChipThemeData(
+      shape: StadiumBorder(side: BorderSide(color: AppColors.border)),
     ),
   );
 }

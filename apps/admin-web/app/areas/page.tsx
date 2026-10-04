@@ -8,9 +8,20 @@ const db = () =>
 
 type Area = {
   id: string; name: string; city: string;
-  center: { type: string; coordinates: [number, number] } | null;
+  center: { type: string; coordinates: [number, number] } | string | null;
   radius_m: number; is_active: boolean;
 };
+
+function fmtCenter(c: Area['center']): string {
+  if (!c) return '—';
+  if (typeof c === 'string') {
+    const m = /POINT\(([-\d.]+) ([-\d.]+)\)/.exec(c);
+    return m ? `${(+m[2]).toFixed(4)}, ${(+m[1]).toFixed(4)}` : c;
+  }
+  const coords = c.coordinates;
+  if (!Array.isArray(coords) || coords.length < 2) return '—';
+  return `${(+coords[1]).toFixed(4)}, ${(+coords[0]).toFixed(4)}`;
+}
 
 export default function AreasPage() {
   const [rows, setRows] = useState<Area[]>([]);
@@ -22,32 +33,46 @@ export default function AreasPage() {
   const [err, setErr] = useState('');
 
   const load = async () => {
-    const { data, error } = await db().from('service_areas').select('*').order('created_at');
-    if (error) setErr(error.message);
-    else setRows((data ?? []) as Area[]);
+    try {
+      const { data, error } = await db().from('service_areas').select('*').order('created_at');
+      if (error) setErr(error.message);
+      else setRows((data ?? []) as Area[]);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load areas. Check connection.');
+    }
   };
   useEffect(() => { load(); }, []);
 
   const create = async () => {
     setErr('');
     const la = parseFloat(lat), lo = parseFloat(lon);
-    if (!name.trim() || !city.trim() || isNaN(la) || isNaN(lo) || radiusKm <= 0) {
+    const km = Number(radiusKm);
+    if (!name.trim() || !city.trim() || isNaN(la) || isNaN(lo) || !(km > 0)) {
       setErr('Fill name, city, center coordinates and a positive radius.');
       return;
     }
-    const { error } = await db().from('service_areas').insert({
-      name: name.trim(), city: city.trim(),
-      center: `SRID=4326;POINT(${lo} ${la})`,
-      radius_m: Math.round(radiusKm * 1000),
-    });
-    if (error) setErr(error.message);
-    else { setName(''); setCity(''); setLat(''); setLon(''); load(); }
+    try {
+      const { error } = await db().from('service_areas').insert({
+        name: name.trim(), city: city.trim(),
+        center: `SRID=4326;POINT(${lo} ${la})`,
+        radius_m: Math.round(km * 1000),
+      });
+      if (error) setErr(error.message);
+      else { setName(''); setCity(''); setLat(''); setLon(''); load(); }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Create failed. Check connection.');
+    }
   };
 
   const toggle = async (a: Area) => {
-    const { error } = await db().from('service_areas').update({ is_active: !a.is_active }).eq('id', a.id);
-    if (error) setErr(error.message);
-    else load();
+    setErr('');
+    try {
+      const { error } = await db().from('service_areas').update({ is_active: !a.is_active }).eq('id', a.id);
+      if (error) setErr(error.message);
+      else load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Update failed. Check connection.');
+    }
   };
 
   return (
@@ -63,7 +88,7 @@ export default function AreasPage() {
             <div className="flex-1 min-w-52">
               <b>{a.name}</b> <span className="text-sm text-slate-500">· {a.city}</span>
               <div className="text-sm text-slate-500">
-                {a.center ? `${a.center.coordinates[1].toFixed(4)}, ${a.center.coordinates[0].toFixed(4)}` : '—'}
+                {fmtCenter(a.center)}
                 {' · '}radius {(a.radius_m / 1000).toFixed(0)} km
               </div>
             </div>

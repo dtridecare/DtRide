@@ -39,11 +39,21 @@ class AuthService {
     return DtProfile.fromJson(row);
   }
 
-  /// Signup details: full name (+ optional avatar url).
-  Future<DtProfile> updateProfile({required String fullName}) async {
+  /// Signup details: full name (+ optional email/gender/city/referral city).
+  Future<DtProfile> updateProfile({
+    required String fullName,
+    String? email,
+    String? gender,
+    String? city,
+  }) async {
     final user = db.auth.currentUser;
     if (user == null) throw StateError('not signed in');
-    await db.from('profiles').update({'full_name': fullName}).eq('id', user.id);
+    await db.from('profiles').update({
+      'full_name': fullName,
+      if (email != null) 'email': email,
+      if (gender != null) 'gender': gender,
+      if (city != null) 'city': city,
+    }).eq('id', user.id);
     final row = await db.from('profiles').select().eq('id', user.id).single();
     return DtProfile.fromJson(row);
   }

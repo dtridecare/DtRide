@@ -24,6 +24,8 @@ class KycService {
     required String plate,
     String? make,
     String? model,
+    String? licenceNo,
+    String? licenceExpiry,
   }) async {
     await db.rpc('submit_kyc', params: {
       'p_category': category,
@@ -31,7 +33,19 @@ class KycService {
       'p_plate': plate,
       'p_make': make,
       'p_model': model,
+      if (licenceNo != null) 'p_licence_no': licenceNo,
+      if (licenceExpiry != null) 'p_licence_expiry': licenceExpiry,
     });
+  }
+
+  /// Rider selfie + ID submitted (files uploaded to kyc-docs first).
+  Future<void> submitRiderKyc() =>
+      db.rpc('submit_rider_kyc');
+
+  /// Counterparty card for a ride (name/rating/trips/vehicle, no PII).
+  Future<Map<String, dynamic>> partyCard(String rideId) async {
+    final res = await db.rpc('ride_party_public', params: {'p_ride': rideId});
+    return Map<String, dynamic>.from(res as Map);
   }
 
   Future<DriverKyc> getKyc() async {

@@ -35,12 +35,9 @@ class PushService {
           settings.authorizationStatus != AuthorizationStatus.provisional) {
         return false;
       }
-      final token = await fm.getToken();
-      if (token == null) return false;
-      final user = db.auth.currentUser;
-      if (user == null) return false;
-      await db.from('push_tokens').upsert(
-          {'user_id': user.id, 'token': token, 'platform': 'android'});
+      await _saveToken(fm);
+      // Tokens rotate: re-save on refresh or pushes die silently.
+      fm.onTokenRefresh.listen((_) => _saveToken(fm)).onError((_) {});
       FirebaseMessaging.onMessage.listen((m) {
         final n = m.notification;
         if (n != null) {
@@ -51,6 +48,16 @@ class PushService {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<void> _saveToken(FirebaseMessaging fm) async {
+    try {
+      final token = await fm.getToken();
+      final user = db.auth.currentUser;
+      if (token == null || user == null) return;
+      await db.from('push_tokens').upsert(
+          {'user_id': user.id, 'token': token, 'platform': 'android'});
+    } catch (_) {}
   }
 
   Future<void> subscribeRide(String rideId) async {

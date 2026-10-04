@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
@@ -7,7 +10,7 @@ import 'package:dt_core/dt_core.dart';
 
 const _ratingTags = ['Polite', 'Clean car', 'Safe driving', 'On time', 'Rash driving', 'Overcharged'];
 
-/// Live ride status: status banner, OTP card, offers, SOS, rating.
+/// Pack trip screen: mini map + SOS, driver card, OTP, fare chip, actions.
 class TrackingScreen extends StatefulWidget {
   final Ride ride;
   final String? otp;
@@ -21,6 +24,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
   late Ride _ride;
   String? _otp;
   List<RideOffer> _offers = [];
+  Map<String, dynamic>? _party;
+  LatLng? _from, _to;
   String? _error;
   String? _notice;
   RealtimeChannel? _rideCh;
@@ -46,6 +51,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
       prev = r.status;
       setState(() => _ride = r);
       if (r.status == RideStatus.completed) _checkRated();
+      if (r.driverId != null && _party == null) _loadParty();
       if (was != r.status &&
           (r.status == RideStatus.accepted ||
            r.status == RideStatus.arrived ||
@@ -64,12 +70,37 @@ class _TrackingScreenState extends State<TrackingScreen> {
       _loadOffers();
     }
     if (_ride.status == RideStatus.completed) _checkRated();
+    if (_ride.driverId != null) _loadParty();
     PushService(Supabase.instance.client).subscribeRide(_ride.id);
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       final base = _ride.createdAt ?? DateTime.now();
       setState(() => _elapsedS = DateTime.now().difference(base).inSeconds);
     });
+    _geocodeEndpoints();
+  }
+
+  Future<void> _geocodeEndpoints() async {
+    try {
+      final maps = OsmAdapter();
+      final a = _ride.pickupText == null ? null : await maps.geocode(_ride.pickupText!);
+      final b = _ride.dropText == null ? null : await maps.geocode(_ride.dropText!);
+      if (mounted) {
+        setState(() {
+          if (a != null) _from = LatLng(a.lat, a.lon);
+          if (b != null) _to = LatLng(b.lat, b.lon);
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadParty() async {
+    try {
+      final p = await KycService(Supabase.instance.client)
+          .db
+          .rpc('ride_party_public', params: {'p_ride': _ride.id});
+      if (mounted) setState(() => _party = Map<String, dynamic>.from(p as Map));
+    } catch (_) {}
   }
 
   Future<void> _loadOffers() async {
@@ -169,105 +200,206 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
   }
 
-  Color _statusColor(RideStatus s) => switch (s) {    RideStatus.requested => Colors.amber.shade700,
-    RideStatus.accepted || RideStatus.arrived => Colors.blue.shade700,
-    RideStatus.started => AppColors.success,
-    RideStatus.completed => AppColors.ink,
-    _ => AppColors.danger,
-  };
+  void _shareTrip() {
+    Share.share(
+      'My DtRide trip: ${_ride.pickupText ?? ''} to ${_ride.dropText ?? ''}. '
+      'Fare ₹${_ride.fareEstimateRs ?? '?'}. Track me — ride ${_ride.id.substring(0, 8)}.');
+  }
+
+  String get _initials {
+    final name = (_party?['name'] ?? 'D') as String;
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts.first.characters.take(2).toString().toUpperCase();
+    return (parts[0].characters.first + parts[1].characters.first).toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context) {
     final active = _ride.status != RideStatus.cancelledBeforeOtp &&
         _ride.status != RideStatus.noDriverFound &&
         _ride.status != RideStatus.completed;
+    final title = switch (_ride.status) {
+      RideStatus.requested => 'Finding your driver',
+      RideStatus.accepted => '${(_party?['name'] ?? 'Driver')} is arriving',
+      RideStatus.arrived => 'Driver arrived',
+      RideStatus.started => 'Trip in progress',
+      RideStatus.completed => 'Trip completed',
+      _ => 'Ride ${_ride.status.name}',
+    };
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Ride ${_ride.status.name}'),
-        actions: [
-          if (active)
-            IconButton(icon: const Icon(Icons.sos, color: Colors.redAccent),
-              tooltip: Str.sos, onPressed: _sos),
-        ],
-      ),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [AppColors.primaryDark, _statusColor(_ride.status)]),
-            borderRadius: BorderRadius.circular(20)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${_ride.pickupText ?? ''} → ${_ride.dropText ?? ''}',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text('₹${_ride.fareEstimateRs ?? '?'} · ${_ride.category} · ${_ride.mode}',
-                style: const TextStyle(color: Colors.white70)),
-          ]),
-        ),
-        if (_ride.status == RideStatus.requested) ...[
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const SizedBox(
-                height: 26, width: 26,
-                child: CircularProgressIndicator(strokeWidth: 3)),
-              title: const Text('Finding your driver…',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text(
-                  'Waiting ${_elapsedS ~/ 60}:${(_elapsedS % 60).toString().padLeft(2, '0')} · nearest drivers notified'),
+      body: Column(children: [
+        SizedBox(
+          height: 220,
+          child: Stack(children: [
+            FlutterMap(
+              options: MapOptions(
+                initialCenter: _from ?? const LatLng(28.6139, 77.2090),
+                initialZoom: 13,
+                interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.dtride.rider_app',
+                ),
+                MarkerLayer(markers: [
+                  if (_from != null)
+                    Marker(point: _from!, width: 40, height: 40,
+                      child: const Icon(Icons.location_pin, color: Colors.green, size: 36)),
+                  if (_to != null)
+                    Marker(point: _to!, width: 40, height: 40,
+                      child: const Icon(Icons.location_pin, color: Colors.red, size: 36)),
+                ]),
+              ],
             ),
-          ),
-        ],
-        if (_otp != null && active) ...[
-          const SizedBox(height: 12),
-          Card(
-            color: Colors.amber.shade50,
-            child: ListTile(
-              leading: const Icon(Icons.key, color: Colors.amber),
-              title: Text(_otp!,
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 6)),
-              subtitle: Text(Str.shareOtp, style: const TextStyle(fontSize: 12)),
-              trailing: IconButton(icon: const Icon(Icons.refresh), onPressed:
-                  (_ride.status == RideStatus.accepted || _ride.status == RideStatus.arrived)
-                      ? _regenOtp : null),
-            ),
-          ),
-        ],
-        if (_notice != null) ...[
-          const SizedBox(height: 8),
-          DtBanner(kind: BannerKind.success, title: _notice!),
-        ],
-        if (_error != null) ...[
-          const SizedBox(height: 8),
-          DtBanner(kind: BannerKind.error, title: _error!),
-        ],
-        if (_ride.mode == 'bidding' && _ride.status == RideStatus.requested) ...[
-          const SizedBox(height: 12),
-          const DtSectionLabel('Driver offers'),
-          for (final o in _offers)
-            if (o.status == 'pending')
-              Card(
-                child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.directions_car)),
-                  title: Text('₹${o.amountRs}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-                  subtitle: Text('Round ${o.round}'),
-                  trailing: DtPrimaryButton(label: 'Accept', onPressed: () => _acceptOffer(o)),
+            if (active)
+              Positioned(
+                right: 14, top: 40,
+                child: GestureDetector(
+                  onTap: _sos,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(999)),
+                    child: const Text('SOS',
+                        style: TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
                 ),
               ),
-          if (_offers.isEmpty)
-            const Text('Waiting for driver offers…', style: TextStyle(color: AppColors.muted)),
-        ],
-        if (_ride.status == RideStatus.noDriverFound)
-          const DtBanner(kind: BannerKind.warn,
-              title: 'No drivers found', subtitle: 'Try a higher bid or another category.'),
-        if (_ride.status == RideStatus.completed && !_rated) ...[
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(children: [
-                const Text(Str.rateDriver, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                DtStars(value: _stars, onChanged: (v) => setState(() => _stars = v)),
+          ]),
+        ),
+        Expanded(
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+            child: ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 20), children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Expanded(child: Text(title,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500))),
+                if (_ride.status == RideStatus.requested)
+                  Text('0:${(_elapsedS % 60).toString().padLeft(2, '0')}',
+                      style: const TextStyle(color: AppColors.muted)),
+              ]),
+              if (_party != null) ...[
+                const SizedBox(height: 12),
+                Row(children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.accent,
+                    child: Text(_initials,
+                        style: const TextStyle(
+                            color: AppColors.ink, fontWeight: FontWeight.w500, fontSize: 12)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text((_party!['name'] ?? 'Driver') as String,
+                          style: const TextStyle(fontWeight: FontWeight.w500)),
+                      Text(
+                        '${_party!['rating'] ?? '—'} rating · ${_party!['trips'] ?? 0} trips'
+                        '${_party!['car'] != null ? ' · ${_party!['car']}' : ''}',
+                        style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                    ]),
+                  ),
+                  if (_party!['plate'] != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: AppColors.accent, borderRadius: BorderRadius.circular(6)),
+                      child: Text((_party!['plate']) as String,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                    ),
+                ]),
+              ],
+              if (_otp != null && active) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: AppColors.surface, borderRadius: BorderRadius.circular(14)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Share this code with your driver to start',
+                        style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      for (final ch in _otp!.split(''))
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          height: 48, width: 40,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                              color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                          child: Text(ch,
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
+                        ),
+                      const Spacer(),
+                      TextButton(onPressed: _regenOtp, child: const Text('New code')),
+                    ]),
+                  ]),
+                ),
+              ],
+              if (_notice != null) ...[
+                const SizedBox(height: 8),
+                DtBanner(kind: BannerKind.success, title: _notice!),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                DtBanner(kind: BannerKind.error, title: _error!),
+              ],
+              if (_ride.mode == 'bidding' && _ride.status == RideStatus.requested) ...[
+                const SizedBox(height: 8),
+                Text('${_offers.where((o) => o.status == 'pending').length} drivers responded',
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                for (final o in _offers)
+                  if (o.status == 'pending')
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.border),
+                          borderRadius: BorderRadius.circular(14)),
+                      child: Row(children: [
+                        const CircleAvatar(child: Icon(Icons.person_outline, size: 18)),
+                        const SizedBox(width: 10),
+                        const Expanded(child: Text('Driver offer')),
+                        Text('₹${o.amountRs}',
+                            style: const TextStyle(fontWeight: FontWeight.w500)),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => _acceptOffer(o),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                                color: AppColors.ink, borderRadius: BorderRadius.circular(10)),
+                            child: const Text('Accept',
+                                style: TextStyle(color: Colors.white, fontSize: 12)),
+                          ),
+                        ),
+                      ]),
+                    ),
+              ],
+              if (_ride.status == RideStatus.noDriverFound)
+                const DtBanner(kind: BannerKind.warn,
+                    title: 'No drivers found', subtitle: 'Try a higher bid or another category.'),
+              const SizedBox(height: 12),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Agreed fare',
+                      style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                  Text('₹${_ride.fareEstimateRs ?? '?'}',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500)),
+                ]),
+                const Row(children: [
+                  Icon(Icons.payments_outlined, size: 14),
+                  SizedBox(width: 4),
+                  Text('Pay driver directly', style: TextStyle(fontSize: 12)),
+                ]),
+              ]),
+              if (_ride.status == RideStatus.completed && !_rated) ...[
+                const SizedBox(height: 12),
+                const Text('Rate your driver',
+                    style: TextStyle(fontWeight: FontWeight.w500)),
+                Center(child: DtStars(value: _stars, onChanged: (v) => setState(() => _stars = v))),
                 Wrap(
                   spacing: 8,
                   children: [
@@ -287,33 +419,38 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 ),
                 const SizedBox(height: 8),
                 DtPrimaryButton(label: 'Submit rating', onPressed: _submitRating),
+              ],
+              const SizedBox(height: 12),
+              Row(children: [
+                _action(Icons.call_outlined, 'Call',
+                    () => launchUrl(Uri.parse('tel:112'))),
+                _action(Icons.message_outlined, 'Message',
+                    () => launchUrl(Uri.parse('sms:'))),
+                _action(Icons.share_outlined, 'Share trip', _shareTrip),
+                _action(Icons.close, active ? 'Cancel' : 'Done', active
+                    ? _cancel
+                    : () => Navigator.of(context).pop()),
               ]),
-            ),
+            ]),
           ),
-        ],
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () => launchUrl(Uri.parse('tel:112')),
-              icon: const Icon(Icons.call),
-              label: const Text(Str.emergencyCall),
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (active &&
-              (_ride.status == RideStatus.requested ||
-               _ride.status == RideStatus.accepted ||
-               _ride.status == RideStatus.arrived))
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _cancel,
-                style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-                child: const Text(Str.cancelRide),
-              ),
-            ),
-        ]),
+        ),
       ]),
     );
   }
+
+  Widget _action(IconData icon, String label, VoidCallback onTap) => Expanded(
+    child: GestureDetector(
+      onTap: onTap,
+      child: Column(children: [
+        Container(
+          height: 40, width: 40,
+          decoration: const BoxDecoration(
+              color: AppColors.surface, shape: BoxShape.circle),
+          child: Icon(icon, size: 18),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+      ]),
+    ),
+  );
 }

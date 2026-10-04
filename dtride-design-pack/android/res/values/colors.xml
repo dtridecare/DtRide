@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="dtride_ink">#111111</color>
+    <color name="dtride_accent">#FACC15</color>
+    <color name="dtride_surface">#F4F4F5</color>
+    <color name="dtride_muted">#6B7280</color>
+    <color name="dtride_border">#E5E7EB</color>
+    <color name="dtride_success">#16A34A</color>
+    <color name="dtride_success_bg">#DCFCE7</color>
+    <color name="dtride_warning_bg">#FEF3C7</color>
+    <color name="dtride_danger">#B91C1C</color>
+    <color name="dtride_danger_bg">#FEE2E2</color>
+    <color name="ic_launcher_background">#111111</color>
+</resources>

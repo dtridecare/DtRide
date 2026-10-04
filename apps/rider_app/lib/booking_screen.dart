@@ -10,7 +10,8 @@ import 'tracking_screen.dart';
 /// Uber-style booking: full-screen OSM map + draggable bottom sheet.
 /// Pickup/drop geocode → OSRM route + fare quote → fixed or bid request.
 class BookingScreen extends StatefulWidget {
-  const BookingScreen({super.key});
+  final String? initialDrop;
+  const BookingScreen({super.key, this.initialDrop});
   @override
   State<BookingScreen> createState() => _BookingScreenState();
 }
@@ -19,7 +20,6 @@ class _BookingScreenState extends State<BookingScreen> {
   final _mapCtl = MapController();
   final _pickup = TextEditingController();
   final _drop = TextEditingController();
-  final _proposed = TextEditingController();
   final _coupon = TextEditingController();
   String _category = 'Mini';
   String _mode = 'fixed';
@@ -27,6 +27,8 @@ class _BookingScreenState extends State<BookingScreen> {
   List<LatLng> _route = [];
   List<({String name, double lat, double lon, int radiusM})> _areas = [];
   FareQuote? _quote;
+  Map<String, int> _prices = {};
+  int _bid = 0;
   int _discount = 0;
   bool _pickupActive = true;
   String? _error;
@@ -38,6 +40,7 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialDrop != null) _drop.text = widget.initialDrop!;
     _booking.serviceAreas().then((a) {
       if (mounted) setState(() => _areas = a);
     }).catchError((_) => null);
@@ -119,6 +122,10 @@ class _BookingScreenState extends State<BookingScreen> {
       final q = await _fare.quote(
         fromLat: from.latitude, fromLon: from.longitude,
         toLat: to.latitude, toLon: to.longitude, category: _category);
+      Map<String, int> prices = {};
+      try {
+        prices = await _fare.quoteAll(distanceM: q.distanceM, durationS: q.durationS);
+      } catch (_) {}
       // Service-area gate (server enforces too, this explains it early).
       final servedFrom = await _booking.isServed(from.longitude, from.latitude);
       final servedTo = await _booking.isServed(to.longitude, to.latitude);
@@ -137,6 +144,8 @@ class _BookingScreenState extends State<BookingScreen> {
         _from = from;
         _to = to;
         _quote = q;
+        _prices = prices;
+        _bid = q.fareRs;
         _route = [for (final p in pts) LatLng(p.latitude, p.longitude)];
       });
       _mapCtl.fitCamera(CameraFit.bounds(
@@ -176,7 +185,7 @@ class _BookingScreenState extends State<BookingScreen> {
         category: _category, mode: _mode,
         distanceM: _quote!.distanceM, durationS: _quote!.durationS,
         fareEstimate: _quote!.fareRs,
-        proposedFare: _mode == 'bidding' ? int.tryParse(_proposed.text.trim()) : null,
+        proposedFare: _mode == 'bidding' ? _bid : null,
         idempotencyKey: 'r${DateTime.now().millisecondsSinceEpoch}',
       );
       if (_discount > 0 && _coupon.text.trim().isNotEmpty) {
@@ -301,33 +310,12 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'fixed', label: Text(Str.fixedFare), icon: Icon(Icons.tag)),
-                ButtonSegment(value: 'bidding', label: Text(Str.bidFare), icon: Icon(Icons.handshake_outlined)),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (s) => setState(() => _mode = s.first),
-            ),
-            if (_mode == 'bidding') ...[
-              const SizedBox(height: 8),
-              TextField(controller: _proposed, keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Your proposed fare ₹', prefixIcon: Icon(Icons.currency_rupee))),
-            ],
+            _modeSeg(),
+            if (_quote != null && _mode == 'bidding') _bidBox(),
             if (_quote != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(20)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('₹${_quote!.fareRs - _discount}',
-                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white)),
-                  Text('${(_quote!.distanceM / 1000).toStringAsFixed(1)} km · ~${_quote!.durationS ~/ 60} min · ${Str.payDirect}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  if (_discount > 0)
-                    Text('Coupon applied −₹$_discount', style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.w700)),
-                ]),
-              ),
+              const SizedBox(height: 8),
+              for (final v in VehicleCategory.all)
+                _vehicleRow(v),
               const SizedBox(height: 8),
               Row(children: [
                 Expanded(child: TextField(controller: _coupon,
@@ -335,6 +323,9 @@ class _BookingScreenState extends State<BookingScreen> {
                 const SizedBox(width: 8),
                 TextButton(onPressed: _busy ? null : _applyCoupon, child: const Text(Str.apply)),
               ]),
+              if (_discount > 0)
+                Text('Coupon applied −₹$_discount · you pay ₹${_quote!.fareRs - _discount}',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
             ],
             if (_error != null) ...[
               const SizedBox(height: 8),
@@ -344,11 +335,118 @@ class _BookingScreenState extends State<BookingScreen> {
             DtPrimaryButton(label: Str.getFare, busy: _busy, onPressed: _estimate),
             if (_quote != null) ...[
               const SizedBox(height: 8),
-              DtPrimaryButton(label: Str.requestRide, busy: _busy, accent: true, onPressed: _request),
+              DtPrimaryButton(
+                label: _mode == 'bidding'
+                    ? 'Send offer · ₹$_bid'
+                    : 'Book ${_labelOf(_category)} · ₹${_quote!.fareRs - _discount}',
+                busy: _busy,
+                onPressed: _request),
             ],
           ]),
         ),
       ),
     ]),
+  );
+
+  String _labelOf(String id) =>
+      VehicleCategory.all.firstWhere((v) => v.id == id, orElse: () => VehicleCategory.all[2]).label;
+
+  Widget _modeSeg() => Container(
+    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
+    padding: const EdgeInsets.all(3),
+    child: Row(children: [
+      for (final m in const ['fixed', 'bidding'])
+        Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() {
+              _mode = m;
+              if (_quote != null) _bid = _quote!.fareRs;
+            }),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: _mode == m ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                border: _mode == m ? Border.all(color: AppColors.border, width: 0.5) : null,
+              ),
+              alignment: Alignment.center,
+              child: Text(m == 'fixed' ? 'Fixed fare' : 'Name your price',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            ),
+          ),
+        ),
+    ]),
+  );
+
+  Widget _vehicleRow(VehicleCategory v) {
+    final sel = _category == v.id;
+    final price = _prices[v.id];
+    return GestureDetector(
+      onTap: () => setState(() {
+        _category = v.id;
+        if (_quote != null) _bid = _quote!.fareRs;
+      }),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: sel ? AppColors.ink : Colors.transparent, width: sel ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(12),
+          color: sel ? const Color(0xFFFAFAFA) : Colors.transparent,
+        ),
+        child: Row(children: [
+          Icon(v.icon, size: 24),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(v.label, style: const TextStyle(fontWeight: FontWeight.w500)),
+              Text('${v.etaMin} min · ${v.seats} seat${v.seats == 1 ? '' : 's'}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+            ]),
+          ),
+          if (_mode == 'bidding')
+            Text('Suggested\n₹${price ?? '…'}',
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 12, color: AppColors.muted))
+          else
+            Text(price == null ? '₹…' : '₹$price',
+                style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _bidBox() {
+    final base = _quote!.fareRs;
+    final band = (base * 0.2).round();
+    final lo = base - band, hi = base + band;
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(12)),
+      child: Column(children: [
+        Text('₹$_bid', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
+        Text('Drivers nearby usually accept ₹$lo to ₹$hi',
+            style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+        const SizedBox(height: 4),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          _stepBtn(Icons.remove, () => setState(() => _bid = (_bid - 5).clamp(lo, hi))),
+          const SizedBox(width: 16),
+          _stepBtn(Icons.add, () => setState(() => _bid = (_bid + 5).clamp(lo, hi))),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _stepBtn(IconData icon, VoidCallback onTap) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      height: 32, width: 32,
+      decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border), shape: BoxShape.circle),
+      child: Icon(icon, size: 16),
+    ),
   );
 }

@@ -41,11 +41,21 @@ class Ride {
 class DtProfile {
   final String id; final String role;
   final String? phone; final String? fullName; final bool isAdmin;
-  const DtProfile({required this.id, required this.role, this.phone, this.fullName, this.isAdmin = false});
+  final String riderKycStatus; final String? riderKycNote;
+  final String? email; final String? gender; final String? city;
+  const DtProfile({required this.id, required this.role, this.phone,
+    this.fullName, this.isAdmin = false,
+    this.riderKycStatus = 'not_submitted', this.riderKycNote,
+    this.email, this.gender, this.city});
   factory DtProfile.fromJson(Map<String, dynamic> j) => DtProfile(
     id: j['id'] as String, role: (j['role'] ?? 'rider') as String,
     phone: j['phone'] as String?, fullName: j['full_name'] as String?,
     isAdmin: (j['is_admin'] ?? false) as bool,
+    riderKycStatus: (j['rider_kyc_status'] ?? 'not_submitted') as String,
+    riderKycNote: j['rider_kyc_note'] as String?,
+    email: j['email'] as String?,
+    gender: j['gender'] as String?,
+    city: j['city'] as String?,
   );
 }
 
