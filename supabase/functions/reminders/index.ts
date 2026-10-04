@@ -42,7 +42,10 @@ serve(async (_req) => {
           await fetch("https://fcm.googleapis.com/fcm/send", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `key=${serverKey}` },
-            body: JSON.stringify({ to: t.token, notification: { title: j.title, body: j.body } }),
+            body: JSON.stringify({
+              to: t.token,
+              notification: { title: j.title, body: j.body, sound: "dt_chime", android_channel_id: "dt_ride_alerts" },
+            }),
           }).catch(() => null);
         }
       }

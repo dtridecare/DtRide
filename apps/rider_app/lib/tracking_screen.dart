@@ -39,10 +39,24 @@ class _TrackingScreenState extends State<TrackingScreen> {
     _ride = widget.ride;
     _otp = widget.otp;
     final svc = _booking;
+    var prev = _ride.status;
     _rideCh = svc.watchRide(_ride.id, (r) {
-      if (mounted) {
-        setState(() => _ride = r);
-        if (r.status == RideStatus.completed) _checkRated();
+      if (!mounted) return;
+      final was = prev;
+      prev = r.status;
+      setState(() => _ride = r);
+      if (r.status == RideStatus.completed) _checkRated();
+      if (was != r.status &&
+          (r.status == RideStatus.accepted ||
+           r.status == RideStatus.arrived ||
+           r.status == RideStatus.started)) {
+        DtSounds.alert(
+          title: 'DT Ride update',
+          body: r.status == RideStatus.accepted
+              ? 'Driver accepted — heading to pickup'
+              : r.status == RideStatus.arrived
+                  ? 'Driver arrived — share your OTP'
+                  : 'Ride started — enjoy your trip');
       }
     });
     if (_ride.mode == 'bidding') {
@@ -60,8 +74,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   Future<void> _loadOffers() async {
     try {
+      final before = _offers.where((o) => o.status == 'pending').length;
       final offers = await _booking.offers(_ride.id);
+      final after = offers.where((o) => o.status == 'pending').length;
       if (mounted) setState(() => _offers = offers);
+      if (after > before) {
+        DtSounds.alert(title: 'New driver offer', body: 'A driver countered — open to review');
+      }
     } catch (_) {}
   }
 

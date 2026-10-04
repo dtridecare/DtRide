@@ -12,6 +12,7 @@ Future<void> main() async {
   }
   await Supabase.initialize(url: DtConfig.supabaseUrl, anonKey: DtConfig.supabaseAnonKey);
   await initDriverBackground();
+  await DtSounds.init();
   runApp(const DriverApp());
 }
 

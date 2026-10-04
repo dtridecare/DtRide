@@ -37,9 +37,12 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
     _loc = LocationService(Supabase.instance.client);
     _refresh();
     _ch = _booking.watchRide(widget.rideId, (r) {
-      if (mounted) {
-        setState(() => _ride = r);
-        if (r.status == RideStatus.completed) _checkRated();
+      if (!mounted) return;
+      final was = _ride?.status;
+      setState(() => _ride = r);
+      if (r.status == RideStatus.completed) _checkRated();
+      if (was != null && was != r.status && r.status == RideStatus.started) {
+        DtSounds.alert(title: 'Ride started', body: '1 credit deducted — drive safe');
       }
     });
     _loc.startRideTracking(widget.rideId);

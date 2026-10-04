@@ -57,7 +57,7 @@ export default function RidesPage() {
                 <td className="td">{r.category} · {r.mode}</td>
                 <td className="td">₹{r.fare_estimate_rs ?? '?'}</td>
                 <td className="td">{r.suspicious
-                  ? <span className="badge bg-red-100 text-red-700">⚠ {r.suspicious}</span>
+                  ? <span className="badge bg-red-100 text-red-700">! {r.suspicious}</span>
                   : <span className="text-slate-400">—</span>}</td>
                 <td className="td text-slate-500">{new Date(r.created_at).toLocaleString()}</td>
               </tr>

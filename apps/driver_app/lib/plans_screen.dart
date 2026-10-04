@@ -14,8 +14,10 @@ class PlansScreen extends StatefulWidget {
 class _PlansScreenState extends State<PlansScreen> {
   List<SubscriptionPlan> _plans = [];
   DriverSubscription? _active;
+  DriverKyc? _kyc;
   String? _error;
   bool _busy = false;
+  bool _loaded = false;
 
   SubscriptionService get _subs => SubscriptionService(Supabase.instance.client);
 
@@ -26,11 +28,12 @@ class _PlansScreenState extends State<PlansScreen> {
   }
 
   Future<void> _load() async {
+    setState(() { _error = null; });
     try {
       final kyc = await KycService(Supabase.instance.client).getKyc();
       final plans = await _subs.plans(category: kyc.vehicleCategory);
       final active = await _subs.activeSubscription();
-      if (mounted) setState(() { _plans = plans; _active = active; });
+      if (mounted) setState(() { _kyc = kyc; _plans = plans; _active = active; _loaded = true; });
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     }
@@ -56,8 +59,12 @@ class _PlansScreenState extends State<PlansScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Subscription plans')),
+  Widget build(BuildContext context) {
+    final approved = _kyc?.approved ?? false;
+    return Scaffold(
+    appBar: AppBar(title: const Text('Subscription plans'), actions: [
+      IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+    ]),
     body: ListView(padding: const EdgeInsets.all(16), children: [
       if (_active != null)
         Container(
@@ -82,9 +89,20 @@ class _PlansScreenState extends State<PlansScreen> {
                 style: const TextStyle(color: Colors.white70, fontSize: 12)),
           ]),
         ),
+      if (_loaded && !approved) ...[
+        const DtBanner(
+          kind: BannerKind.warn,
+          title: 'KYC approval needed',
+          subtitle: 'Plans unlock once your KYC is approved. You can browse prices meanwhile.'),
+      ],
       if (_error != null) ...[
         const SizedBox(height: 8),
         DtBanner(kind: BannerKind.error, title: _error!),
+        TextButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Retry'),
+        ),
       ],
       const SizedBox(height: 12),
       const DtSectionLabel('Available plans'),
@@ -95,11 +113,31 @@ class _PlansScreenState extends State<PlansScreen> {
             title: Text('${p.name} — ₹${p.priceRs}',
                 style: const TextStyle(fontWeight: FontWeight.w800)),
             subtitle: Text('${p.rideCredits} rides · ${p.validityDays} days · ₹${(p.priceRs / p.rideCredits).toStringAsFixed(1)}/ride'),
-            trailing: DtPrimaryButton(label: 'Buy', busy: _busy, onPressed: () => _buy(p)),
+            trailing: DtPrimaryButton(
+              label: 'Buy', busy: _busy,
+              onPressed: approved ? () => _buy(p) : null),
           ),
         ),
-      if (_plans.isEmpty && _error == null)
+      if (_loaded && _plans.isEmpty && _error == null)
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(children: [
+              Text('No plans for ${_kyc?.vehicleCategory ?? 'your category'} right now.',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              const Text('Contact support or try again later.',
+                  style: TextStyle(color: AppColors.muted)),
+              TextButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+              ),
+            ]),
+          ),
+        ),
+      if (!_loaded && _error == null)
         const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
     ]),
   );
+  }
 }

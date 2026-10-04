@@ -30,9 +30,17 @@ class _RequestsScreenState extends State<RequestsScreen> {
   Future<void> _load() async {
     setState(() => _error = null);
     try {
+      final before = _reqs.map((r) => r.rideId).toSet();
       final pos = await Geolocator.getCurrentPosition();
       final reqs = await _booking.nearbyRequests(pos.longitude, pos.latitude);
-      if (mounted) setState(() => _reqs = reqs);
+      if (!mounted) return;
+      final fresh = reqs.where((r) => !before.contains(r.rideId)).toList();
+      setState(() => _reqs = reqs);
+      if (before.isNotEmpty && fresh.isNotEmpty) {
+        DtSounds.alert(
+          title: 'New ride request',
+          body: '₹${fresh.first.mode == 'bidding' ? (fresh.first.proposedFare ?? fresh.first.fareEstimate) : fresh.first.fareEstimate} · ${fresh.first.category}');
+      }
     } catch (e) {
       if (!mounted) return;
       final msg = '$e';

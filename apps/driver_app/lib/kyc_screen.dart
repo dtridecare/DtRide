@@ -3,10 +3,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'plans_screen.dart';
+import 'driver_home_screen.dart';
 
 const _docs = ['license', 'rc', 'aadhaar', 'selfie'];
 
-/// 3-step KYC wizard: 1 Vehicle → 2 Documents + UPI → 3 Review & submit.
+/// Status-driven KYC: fresh → wizard form; submitted → review tracker;
+/// rejected → admin notes + resubmit form; approved → plans CTA.
 class KycScreen extends StatefulWidget {
   const KycScreen({super.key});
   @override
@@ -23,22 +25,37 @@ class _KycScreenState extends State<KycScreen> {
   final Set<String> _uploads = {};
   String? _error;
   bool _busy = false;
+  bool _loading = true;
+  bool _showForm = true;
   DriverKyc? _kyc;
+  bool _submitted = false;
 
   KycService get _kycSvc => KycService(Supabase.instance.client);
 
   @override
   void initState() {
     super.initState();
-    _kycSvc.getKyc().then((k) {
-      if (mounted) {
-        setState(() {
-          _kyc = k;
-          _category = k.vehicleCategory;
-          _upi.text = k.upiId ?? '';
-        });
-      }
-    }).catchError((_) => null);
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final kyc = await _kycSvc.getKyc();
+      final submitted = await _kycSvc.hasSubmission();
+      if (!mounted) return;
+      setState(() {
+        _kyc = kyc;
+        _submitted = submitted;
+        _category = kyc.vehicleCategory;
+        if (_upi.text.isEmpty) _upi.text = kyc.upiId ?? '';
+        // Show the form for fresh or rejected applications, status otherwise.
+        _showForm = !submitted || kyc.kycStatus == 'rejected';
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = '$e'; _loading = false; });
+    }
   }
 
   Future<void> _pickAndUpload(String doc) async {
@@ -61,6 +78,10 @@ class _KycScreenState extends State<KycScreen> {
       setState(() => _error = 'Number plate and UPI ID are required.');
       return;
     }
+    if (_uploads.isEmpty) {
+      setState(() => _error = 'Upload at least one document photo first.');
+      return;
+    }
     setState(() { _busy = true; _error = null; });
     try {
       await _kycSvc.submit(
@@ -70,10 +91,7 @@ class _KycScreenState extends State<KycScreen> {
         make: _make.text.trim().isEmpty ? null : _make.text.trim(),
         model: _model.text.trim().isEmpty ? null : _model.text.trim(),
       );
-      if (mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const PlansScreen()));
-      }
+      await _reload();
     } catch (e) {
       setState(() => _error = '$e');
     } finally {
@@ -82,21 +100,119 @@ class _KycScreenState extends State<KycScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Driver onboarding')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    final status = _kyc?.kycStatus ?? 'pending';
+    if (!_showForm && status == 'approved') return _approvedView();
+    if (!_showForm && _submitted) return _pendingView();
+    return _formView(rejectedNote: status == 'rejected' ? _kyc?.notes : null);
+  }
+
+  Widget _approvedView() => Scaffold(
     appBar: AppBar(title: const Text('Driver onboarding')),
+    body: ListView(padding: const EdgeInsets.all(20), children: [
+      const DtBanner(
+        kind: BannerKind.success,
+        title: 'KYC approved — welcome aboard!',
+        subtitle: 'Buy a subscription plan to start accepting rides.'),
+      const SizedBox(height: 16),
+      DtPrimaryButton(
+        label: 'View plans',
+        accent: true,
+        onPressed: () => Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const PlansScreen())),
+      ),
+      TextButton(
+        onPressed: () => Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const DriverHomeScreen())),
+        child: const Text('Later — go to home'),
+      ),
+    ]),
+  );
+
+  Widget _pendingView() => Scaffold(
+    appBar: AppBar(title: const Text('Driver onboarding'), actions: [
+      IconButton(icon: const Icon(Icons.refresh), onPressed: _reload),
+    ]),
+    body: ListView(padding: const EdgeInsets.all(20), children: [
+      const DtBanner(
+        kind: BannerKind.info,
+        title: 'Application under review',
+        subtitle: 'Approval usually takes under a day. Pull to check — use refresh above.'),
+      if (_error != null) ...[
+        const SizedBox(height: 8),
+        DtBanner(kind: BannerKind.error, title: _error!),
+      ],
+      const SizedBox(height: 12),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(children: [
+            _trackRow(true, 'Submitted', 'Vehicle + documents received'),
+            _trackRow(true, 'Under review', 'Our team is verifying your documents'),
+            _trackRow(false, 'Decision', 'Approved or rejected with notes'),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton(
+        onPressed: () => setState(() => _showForm = true),
+        child: const Text('Edit & resubmit application'),
+      ),
+    ]),
+  );
+
+  Widget _trackRow(bool done, String title, String subtitle) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(children: [
+      CircleAvatar(
+        radius: 14,
+        backgroundColor: done ? AppColors.success : Colors.grey.shade300,
+        child: Icon(done ? Icons.check : Icons.hourglass_empty,
+            size: 14, color: done ? Colors.white : Colors.grey.shade600),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+        ]),
+      ),
+    ]),
+  );
+
+  Widget _formView({String? rejectedNote}) => Scaffold(
+    appBar: AppBar(title: Text(rejectedNote != null ? 'Resubmit KYC' : 'Driver onboarding')),
     body: Column(children: [
-      if (_kyc != null)
+      if (rejectedNote != null)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: DtBanner(
-            kind: _kyc!.approved ? BannerKind.success : BannerKind.info,
-            title: 'KYC status: ${_kyc!.kycStatus}',
-            subtitle: _kyc!.notes),
+            kind: BannerKind.error,
+            title: 'Previous application rejected',
+            subtitle: rejectedNote),
         ),
       if (_error != null)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: DtBanner(kind: BannerKind.error, title: _error!),
+        ),
+      if (_submitted)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Row(children: [
+            Expanded(
+              child: TextButton(
+                onPressed: _reload,
+                child: const Text('Back to status'),
+              ),
+            ),
+          ]),
         ),
       Expanded(
         child: Stepper(
@@ -117,7 +233,7 @@ class _KycScreenState extends State<KycScreen> {
             child: Row(children: [
               Expanded(
                 child: DtPrimaryButton(
-                  label: _step == 2 ? (_busy ? 'Submitting…' : 'Submit KYC') : 'Continue',
+                  label: _step == 2 ? 'Submit KYC' : 'Continue',
                   busy: _busy,
                   onPressed: details.onStepContinue,
                 ),

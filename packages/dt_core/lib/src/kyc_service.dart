@@ -39,6 +39,13 @@ class KycService {
     return DriverKyc.fromJson(row);
   }
 
+  /// True once the driver has submitted at least one vehicle (distinguishes
+  /// fresh accounts from pending review, since kyc_status defaults pending).
+  Future<bool> hasSubmission() async {
+    final rows = await db.from('vehicles').select('id').eq('driver_id', _uid).limit(1);
+    return (rows as List).isNotEmpty;
+  }
+
   Stream<DriverKyc> watchKyc() => db
       .from('drivers')
       .stream(primaryKey: ['id'])

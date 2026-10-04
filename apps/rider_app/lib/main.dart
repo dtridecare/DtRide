@@ -10,11 +10,11 @@ Future<void> main() async {
     return;
   }
   await Supabase.initialize(url: DtConfig.supabaseUrl, anonKey: DtConfig.supabaseAnonKey);
+  await DtSounds.init();
   runApp(const RiderApp());
 }
 
-class _MissingConfigApp extends StatelessWidget {
-  const _MissingConfigApp();
+class _MissingConfigApp extends StatelessWidget {  const _MissingConfigApp();
   @override
   Widget build(BuildContext context) => MaterialApp(
     theme: buildAppTheme(),
