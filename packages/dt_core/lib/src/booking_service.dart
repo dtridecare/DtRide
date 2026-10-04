@@ -19,7 +19,7 @@ class BookingService {
     required int distanceM, required int durationS, required int fareEstimate,
     int? proposedFare, String? idempotencyKey,
   }) async {
-    final res = await db.rpc('create_ride', params: {
+    final res = await db.rpc('request_ride', params: {
       'p_pickup_lon': pickupLon, 'p_pickup_lat': pickupLat,
       'p_drop_lon': dropLon, 'p_drop_lat': dropLat,
       'p_pickup_text': pickupText, 'p_drop_text': dropText,
@@ -90,6 +90,61 @@ class BookingService {
         'p_ride': rideId, 'p_lon': lon, 'p_lat': lat,
         if (speed != null) 'p_speed': speed,
       });
+
+  /// Ask the server to fan out this request to nearby drivers (push).
+  /// Best-effort: matching still works via polling if it fails.
+  Future<void> dispatchRide(String rideId) async {
+    try {
+      await db.functions.invoke('dispatch', body: {'ride_id': rideId});
+    } catch (_) {}
+  }
+
+  /// Tell the other party about a state change (server composes + sends).
+  /// Events: accepted|arrived|started|completed|cancelled|offer|offer_accepted.
+  Future<void> notifyRide(String rideId, String event) async {
+    try {
+      await db.functions.invoke('notify-ride',
+          body: {'ride_id': rideId, 'event': event});
+    } catch (_) {}
+  }
+
+  /// Is a point inside a live service area? Returns area name or null.
+  /// Empty RPC result (no matching area) means unserved, not an error.
+  Future<({bool served, String? area})> isServed(double lon, double lat) async {
+    final res = await db.rpc('is_served', params: {'p_lon': lon, 'p_lat': lat});
+    if (res is List && res.isEmpty) return (served: false, area: null);
+    final row = _single(res);
+    return (served: (row['served'] ?? false) as bool, area: row['area_name'] as String?);
+  }
+
+  /// Active service areas (for map circles + served-city hints).
+  Future<List<({String name, double lat, double lon, int radiusM})>> serviceAreas() async {
+    final rows = await db.from('service_areas')
+        .select('name,center,radius_m').eq('is_active', true);
+    double lon = 0, lat = 0;
+    final out = <({String name, double lat, double lon, int radiusM})>[];
+    for (final r in (rows as List)) {
+      final row = r as Map;
+      final c = row['center'];
+      if (c is Map && c['coordinates'] is List) {
+        final coords = c['coordinates'] as List;
+        lon = (coords[0] as num).toDouble();
+        lat = (coords[1] as num).toDouble();
+      } else if (c is String) {
+        final m = RegExp(r'POINT\(([-\d.]+) ([-\d.]+)\)').firstMatch(c);
+        if (m != null) {
+          lon = double.parse(m.group(1)!);
+          lat = double.parse(m.group(2)!);
+        }
+      }
+      out.add((
+        name: row['name'] as String? ?? '',
+        lon: lon, lat: lat,
+        radiusM: (row['radius_m'] ?? 0) as int,
+      ));
+    }
+    return out;
+  }
 
   /// Live ride updates for rider + driver tracking screens.
   RealtimeChannel watchRide(String rideId, void Function(Ride) onUpdate) {

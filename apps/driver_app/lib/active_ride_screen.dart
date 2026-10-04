@@ -83,6 +83,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
     try {
       final pos = await _pos();
       final r = await _booking.markArrived(widget.rideId, pos.lon, pos.lat);
+      _booking.notifyRide(widget.rideId, 'arrived');
       setState(() => _ride = r);
     } catch (e) {
       setState(() => _error = '$e');
@@ -96,6 +97,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
     try {
       await RideApi(Supabase.instance.client)
           .startWithOtp(widget.rideId, _otp.text.trim());
+      BookingService(Supabase.instance.client).notifyRide(widget.rideId, 'started');
       await _refresh();
     } catch (e) {
       setState(() => _error = '$e');
@@ -110,6 +112,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
       final pos = await _pos();
       final r = await RideApi(Supabase.instance.client)
           .complete(widget.rideId, pos.lon, pos.lat);
+      BookingService(Supabase.instance.client).notifyRide(widget.rideId, 'completed');
       setState(() => _ride = r);
     } catch (e) {
       setState(() => _error = '$e');

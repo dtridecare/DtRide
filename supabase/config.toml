@@ -17,3 +17,8 @@ enabled = true
 
 [storage]
 enabled = true
+
+# send-push uses a shared secret (x-push-secret), not user JWTs —
+# pg_net-style server callers and sibling functions invoke it directly.
+[functions.send-push]
+verify_jwt = false

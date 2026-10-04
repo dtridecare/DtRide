@@ -59,6 +59,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
     try {
       final pos = await Geolocator.getCurrentPosition();
       final ride = await _booking.acceptRide(r.rideId, pos.longitude, pos.latitude);
+      _booking.notifyRide(r.rideId, 'accepted');
       if (mounted) {
         Navigator.of(context).pushReplacement(MaterialPageRoute(
           builder: (_) => ActiveRideScreen(rideId: ride.id)));
@@ -79,6 +80,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
     setState(() { _busy = true; _error = null; _notice = null; });
     try {
       await _booking.placeOffer(r.rideId, amount);
+      _booking.notifyRide(r.rideId, 'offer');
       if (mounted) setState(() => _notice = 'Offer ₹$amount sent. Stay online — the rider picks fast.');
     } catch (e) {
       setState(() => _error = '$e');

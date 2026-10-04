@@ -103,6 +103,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     setState(() => _error = null);
     try {
       final r = await _booking.acceptOffer(_ride.id, o.id);
+      _booking.notifyRide(_ride.id, 'offer_accepted');
       if (mounted) setState(() => _ride = r);
     } catch (e) {
       setState(() => _error = '$e');
@@ -122,6 +123,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
   Future<void> _cancel() async {
     try {
       final r = await _booking.cancelRide(_ride.id);
+      _booking.notifyRide(_ride.id, 'cancelled');
       if (mounted) setState(() => _ride = r);
     } catch (e) {
       setState(() => _error = '$e');

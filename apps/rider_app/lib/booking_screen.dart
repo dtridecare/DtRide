@@ -25,6 +25,7 @@ class _BookingScreenState extends State<BookingScreen> {
   String _mode = 'fixed';
   LatLng? _from, _to, _me;
   List<LatLng> _route = [];
+  List<({String name, double lat, double lon, int radiusM})> _areas = [];
   FareQuote? _quote;
   int _discount = 0;
   bool _pickupActive = true;
@@ -37,6 +38,9 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
+    _booking.serviceAreas().then((a) {
+      if (mounted) setState(() => _areas = a);
+    }).catchError((_) => null);
     LocationService(Supabase.instance.client).ensurePermission().then((ok) {
       if (!mounted) return;
       if (!ok) {
@@ -115,6 +119,18 @@ class _BookingScreenState extends State<BookingScreen> {
       final q = await _fare.quote(
         fromLat: from.latitude, fromLon: from.longitude,
         toLat: to.latitude, toLon: to.longitude, category: _category);
+      // Service-area gate (server enforces too, this explains it early).
+      final servedFrom = await _booking.isServed(from.longitude, from.latitude);
+      final servedTo = await _booking.isServed(to.longitude, to.latitude);
+      if (!servedFrom.served || !servedTo.served) {
+        final cities = _areas.isEmpty
+            ? 'our launch city'
+            : _areas.map((a) => a.name).join(', ');
+        final bad = !servedFrom.served ? 'pickup' : 'drop';
+        setState(() => _error =
+            'Outside service area: this $bad is not served yet. We currently serve: $cities.');
+        return;
+      }
       final r = await maps.route(from.latitude, from.longitude, to.latitude, to.longitude);
       final pts = PolylinePoints().decodePolyline(r.polyline);
       setState(() {
@@ -167,6 +183,8 @@ class _BookingScreenState extends State<BookingScreen> {
         await CouponService(Supabase.instance.client)
             .recordUse(_coupon.text.trim(), res.ride.id);
       }
+      // Fan out to nearby drivers (push + realtime). Best-effort.
+      _booking.dispatchRide(res.ride.id);
       if (mounted) {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => TrackingScreen(ride: res.ride, otp: res.otp)));
@@ -193,6 +211,18 @@ class _BookingScreenState extends State<BookingScreen> {
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.dtride.rider_app',
           ),
+          if (_areas.isNotEmpty)
+            CircleLayer(circles: [
+              for (final a in _areas)
+                CircleMarker(
+                  point: LatLng(a.lat, a.lon),
+                  radius: a.radiusM.toDouble(),
+                  useRadiusInMeter: true,
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  borderColor: AppColors.primary.withValues(alpha: 0.35),
+                  borderStrokeWidth: 2,
+                ),
+            ]),
           if (_route.isNotEmpty)
             PolylineLayer(polylines: [
               Polyline(points: _route, strokeWidth: 5, color: AppColors.primary),

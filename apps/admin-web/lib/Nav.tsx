@@ -11,6 +11,7 @@ const NAV = [
   { href: '/rides', label: 'Live rides' },
   { href: '/disputes', label: 'Disputes' },
   { href: '/coupons', label: 'Coupons' },
+  { href: '/areas', label: 'Areas' },
 ];
 
 export default function Nav() {
