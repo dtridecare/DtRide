@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'login_screen.dart';
 import 'plans_screen.dart';
+import 'profile_screen.dart';
 import 'requests_screen.dart';
 import 'earnings_screen.dart';
 import 'kyc_screen.dart';
@@ -21,6 +25,7 @@ class DriverHomeScreen extends StatefulWidget {
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DriverKyc? _kyc;
+  DtProfile? _profile;
   DriverSubscription? _sub;
   int _todayTrips = 0;
   int _todayEarned = 0;
@@ -28,20 +33,56 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _busy = false;
   int _unread = 0;
   LatLng _me = const LatLng(28.6139, 77.2090);
+  bool _permsOk = true;
+  bool _bgLocOk = true;
+  bool _follow = true;
+  final _mapCtl = MapController();
+  StreamSubscription<Position>? _posSub;
 
   @override
   void initState() {
     super.initState();
     PushService(Supabase.instance.client).init();
     _load();
-    Geolocator.getCurrentPosition().then((p) {
-      if (mounted) setState(() => _me = LatLng(p.latitude, p.longitude));
-    }).catchError((_) => null);
+    _checkPerms();
+    _posSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high, distanceFilter: 15),
+    ).listen((p) {
+      if (!mounted) return;
+      setState(() => _me = LatLng(p.latitude, p.longitude));
+      if (_follow) _mapCtl.move(_me, _mapCtl.camera.zoom);
+    }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkPerms() async {
+    try {
+      final locSvc = LocationService(Supabase.instance.client);
+      final loc = await locSvc.ensurePermission();
+      var bg = await Permission.locationAlways.status;
+      if (!loc) {
+        bg = PermissionStatus.denied;
+      } else if (bg.isDenied) {
+        bg = await Permission.locationAlways.request();
+      }
+      if (!mounted) return;
+      setState(() {
+        _permsOk = loc;
+        _bgLocOk = bg.isGranted || bg.isLimited;
+      });
+    } catch (_) {}
   }
 
   Future<void> _load() async {
     final c = Supabase.instance.client;
     try {
+      final profile = await AuthService(c).currentProfile().catchError((_) => null);
       final kyc = await KycService(c).getKyc();
       final sub = await SubscriptionService(c).activeSubscription();
       final unread = await NotificationService(c).unreadCount().catchError((_) => 0);
@@ -59,6 +100,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       } catch (_) {}
       if (mounted) {
         setState(() {
+          _profile = profile;
           _kyc = kyc;
           _sub = sub;
           _unread = unread;
@@ -88,25 +130,144 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
-  void _logout() async {
+  Future<void> _logout() async {
     await Supabase.instance.client.auth.signOut();
     if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const DriverLoginScreen()));
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const DriverLoginScreen()),
+        (_) => false);
     }
   }
+
+  void _openPermissions() =>
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (ctx) => DtPermissionsScreen(
+          onDone: () {
+            Navigator.of(ctx).pop();
+            _checkPerms();
+          },
+        ),
+      ));
 
   @override
   Widget build(BuildContext context) {
     final online = _kyc?.online ?? false;
     return Scaffold(
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(children: [
+                    CircleAvatar(
+                      backgroundColor: AppColors.accent,
+                      child: Text(
+                        ((_profile?.fullName ?? 'D').trim().isEmpty
+                                ? 'D'
+                                : _profile!.fullName!.trim()[0])
+                            .toUpperCase(),
+                        style: const TextStyle(
+                            color: AppColors.ink,
+                            fontWeight: FontWeight.w500)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_profile?.fullName ?? 'Driver',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w500)),
+                            Text(_profile?.phone ?? '',
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppColors.muted)),
+                          ]),
+                    ),
+                  ]),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: const Text('Profile'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context)
+                        .push(MaterialPageRoute(
+                            builder: (_) =>
+                                const DriverProfileScreen()))
+                        .then((_) => _load());
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.account_balance_wallet_outlined),
+                  title: const Text('Earnings'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const EarningsScreen()));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.card_membership_outlined),
+                  title: const Text('Plans'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const PlansScreen()));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.notifications_outlined),
+                  title: const Text('Notifications'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context)
+                        .push(MaterialPageRoute(
+                            builder: (_) =>
+                                const NotificationsScreen()))
+                        .then((_) => _load());
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: const Text('Permissions'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _openPermissions();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.support_agent_outlined),
+                  title: const Text('Support'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    showDtMessage(context, 'Support: care@dtride.in');
+                  },
+                ),
+                const Spacer(),
+                ListTile(
+                  leading:
+                      const Icon(Icons.logout, color: AppColors.danger),
+                  title: const Text('Log out',
+                      style: TextStyle(color: AppColors.danger)),
+                  onTap: _logout,
+                ),
+              ]),
+        ),
+      ),
       body: Column(children: [
         Expanded(
           child: Stack(children: [
             FlutterMap(
+              mapController: _mapCtl,
               options: MapOptions(initialCenter: _me, initialZoom: 14,
                 interactionOptions:
-                    const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate)),
+                    const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
+                onPositionChanged: (pos, hasGesture) {
+                  if (hasGesture && _follow) setState(() => _follow = false);
+                }),
               children: [
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -134,13 +295,32 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             ),
             Positioned(
               left: 14, top: 48,
+              child: Builder(
+                builder: (ctx) => GestureDetector(
+                  onTap: () => Scaffold.of(ctx).openDrawer(),
+                  child: Container(
+                    height: 36, width: 36,
+                    decoration: const BoxDecoration(
+                        color: Colors.white, shape: BoxShape.circle),
+                    child: const Icon(Icons.menu, size: 18),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 14, bottom: 16,
               child: GestureDetector(
-                onTap: _logout,
+                onTap: () {
+                  setState(() => _follow = true);
+                  _mapCtl.move(_me, _mapCtl.camera.zoom);
+                },
                 child: Container(
-                  height: 36, width: 36,
+                  height: 40, width: 40,
                   decoration: const BoxDecoration(
                       color: Colors.white, shape: BoxShape.circle),
-                  child: const Icon(Icons.menu, size: 18),
+                  child: Icon(
+                    _follow ? Icons.my_location : Icons.location_searching,
+                    size: 20),
                 ),
               ),
             ),
@@ -211,6 +391,27 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   if (_error != null) ...[
                     const SizedBox(height: 8),
                     DtBanner(kind: BannerKind.error, title: _error!),
+                  ],
+                  if (!_permsOk) ...[
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: _openPermissions,
+                      child: const DtBanner(
+                        kind: BannerKind.warn,
+                        title: 'Location is off — tap to enable',
+                        subtitle: 'Requests and tracking need GPS.'),
+                    ),
+                  ],
+                  if (_permsOk && !_bgLocOk) ...[
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: _openPermissions,
+                      child: const DtBanner(
+                        kind: BannerKind.warn,
+                        title: 'Background location off — tap to fix',
+                        subtitle:
+                            'Choose "Allow all the time" so trips keep tracking with the screen off.'),
+                    ),
                   ],
                   if (_kyc!.blocked) ...[
                     const SizedBox(height: 8),

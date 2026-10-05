@@ -51,16 +51,30 @@ class _BookingScreenState extends State<BookingScreen> {
             'Location is off — allow access for GPS pickup, or type the address / tap the map.');
         return;
       }
-      Geolocator.getCurrentPosition().then((p) {
+      Geolocator.getCurrentPosition().then((p) async {
         if (!mounted) return;
+        final here = LatLng(p.latitude, p.longitude);
         setState(() {
-          _me = LatLng(p.latitude, p.longitude);
-          _from = _me;
+          _me = here;
+          _from = here;
           _pickup.text = 'Current location';
         });
-        _mapCtl.move(_me!, 14);
+        _mapCtl.move(here, 14);
+        final label = await _reverseLabel(here, 'Current location');
+        if (!mounted) return;
+        setState(() {
+          if (_pickup.text == 'Current location') _pickup.text = label;
+        });
       }).catchError((_) => null);
     });
+  }
+
+  Future<String> _reverseLabel(LatLng p, String fallback) async {
+    try {
+      return await OsmAdapter().reverse(p.latitude, p.longitude);
+    } catch (_) {
+      return fallback;
+    }
   }
 
   Future<void> _useCurrent() async {
@@ -68,12 +82,16 @@ class _BookingScreenState extends State<BookingScreen> {
     try {
       final p = await Geolocator.getCurrentPosition();
       if (!mounted) return;
+      final here = LatLng(p.latitude, p.longitude);
       setState(() {
-        _me = LatLng(p.latitude, p.longitude);
-        _from = _me;
-        _pickup.text = 'Current location';
+        _me = here;
+        _from = here;
+        _pickup.text = 'Locating…';
       });
-      _mapCtl.move(_me!, 14);
+      _mapCtl.move(here, 14);
+      final label = await _reverseLabel(here, 'Current location');
+      if (!mounted) return;
+      setState(() => _pickup.text = label);
     } catch (_) {
       setState(() => _error = 'Could not get GPS fix — allow location access or type the pickup.');
     } finally {
@@ -82,17 +100,30 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   void _onMapTap(LatLng p) {
+    final coords =
+        '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}';
     setState(() {
       if (_pickupActive) {
         _from = p;
-        _pickup.text = '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}';
+        _pickup.text = coords;
       } else {
         _to = p;
-        _drop.text = '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}';
+        _drop.text = coords;
       }
       _quote = null;
       _discount = 0;
     });
+    // Replace raw coordinates with a real address in the background.
+    _reverseLabel(p, coords).then((label) {
+      if (!mounted) return;
+      setState(() {
+        if (_pickupActive) {
+          if (_from == p) _pickup.text = label;
+        } else {
+          if (_to == p) _drop.text = label;
+        }
+      });
+    }).catchError((_) => null);
   }
 
   Future<void> _estimate() async {

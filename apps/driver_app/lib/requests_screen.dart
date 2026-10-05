@@ -23,6 +23,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
   String? _notice;
   bool _busy = false;
   Timer? _ticker;
+  Timer? _poll;
+  RealtimeChannel? _ch;
 
   BookingService get _booking => BookingService(Supabase.instance.client);
 
@@ -34,20 +36,38 @@ class _RequestsScreenState extends State<RequestsScreen> {
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+    // Silent re-fetch every 10s so new requests arrive without refresh.
+    _poll = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _load(silent: true);
+    });
+    _ch = Supabase.instance.client
+        .channel('open-requests')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'rides',
+          callback: (_) {
+            if (mounted) _load(silent: true);
+          },
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    _poll?.cancel();
+    if (_ch != null) Supabase.instance.client.removeChannel(_ch!);
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _error = null);
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _error = null);
     try {
       final pos = await Geolocator.getCurrentPosition();
       final reqs = await _booking.nearbyRequests(pos.longitude, pos.latitude);
       if (!mounted) return;
+      final had = _reqs.isNotEmpty;
       final fresh = reqs.where((r) =>
           !_reqs.any((o) => o.rideId == r.rideId)).toList();
       setState(() => _reqs = reqs);
@@ -59,7 +79,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         _counters.putIfAbsent(r.rideId, () => base);
         if (_parties[r.rideId] == null) _loadParty(r.rideId);
       }
-      if (fresh.isNotEmpty) {
+      if (had && fresh.isNotEmpty) {
         DtSounds.alert(
           title: 'New ride request',
           body: '₹${fresh.first.mode == 'bidding'

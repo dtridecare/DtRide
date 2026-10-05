@@ -36,7 +36,18 @@ class _TrackingScreenState extends State<TrackingScreen> {
   Timer? _timer;
   int _elapsedS = 0;
 
+  MapController? _mapCtl;
+
   BookingService get _booking => BookingService(Supabase.instance.client);
+
+  void _frameRoute() {
+    if (_mapCtl == null || _from == null || _to == null) return;
+    try {
+      _mapCtl!.fitCamera(CameraFit.bounds(
+        bounds: LatLngBounds(_from!, _to!),
+        padding: const EdgeInsets.all(60)));
+    } catch (_) {}
+  }
 
   @override
   void initState() {
@@ -90,6 +101,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
           if (a != null) _from = LatLng(a.lat, a.lon);
           if (b != null) _to = LatLng(b.lat, b.lon);
         });
+        _frameRoute();
       }
     } catch (_) {}
   }
@@ -232,6 +244,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
           height: 220,
           child: Stack(children: [
             FlutterMap(
+              mapController: _mapCtl ??= MapController(),
               options: MapOptions(
                 initialCenter: _from ?? const LatLng(28.6139, 77.2090),
                 initialZoom: 13,
@@ -252,6 +265,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 ]),
               ],
             ),
+            if (_ride.status == RideStatus.requested)
+              const Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(child: DtRadar(size: 140)),
+                ),
+              ),
             if (active)
               Positioned(
                 right: 14, top: 40,

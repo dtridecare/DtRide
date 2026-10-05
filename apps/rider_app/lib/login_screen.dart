@@ -107,19 +107,40 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 24),
         if (_error != null) DtBanner(kind: BannerKind.error, title: _error!),
         if (!_sent) ...[
-          const Text('Phone number', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(
+                  value: false,
+                  label: Text('Phone'),
+                  icon: Icon(Icons.phone_outlined, size: 16)),
+              ButtonSegment(
+                  value: true,
+                  label: Text('Email'),
+                  icon: Icon(Icons.email_outlined, size: 16)),
+            ],
+            selected: {_emailMode},
+            onSelectionChanged: (s) => setState(() {
+              _emailMode = s.first;
+              _id.clear();
+              _error = null;
+            }),
+          ),
+          const SizedBox(height: 12),
+          Text(_emailMode ? 'Email address' : 'Phone number',
+              style: const TextStyle(fontSize: 12, color: AppColors.muted)),
           const SizedBox(height: 6),
           Row(children: [
-            Container(
-              height: 48,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.border),
-                borderRadius: BorderRadius.circular(12)),
-              alignment: Alignment.center,
-              child: const Text('+91', style: TextStyle(fontWeight: FontWeight.w500)),
-            ),
-            const SizedBox(width: 8),
+            if (!_emailMode)
+              Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(12)),
+                alignment: Alignment.center,
+                child: const Text('+91', style: TextStyle(fontWeight: FontWeight.w500)),
+              ),
+            if (!_emailMode) const SizedBox(width: 8),
             Expanded(
               child: SizedBox(
                 height: 48,
@@ -132,13 +153,13 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ]),
-          TextButton(
-            onPressed: () => setState(() {
-              _emailMode = !_emailMode;
-              _id.clear();
-            }),
-            child: Text(_emailMode ? 'Use phone instead' : 'Use email instead'),
-          ),
+          const SizedBox(height: 4),
+          Text(
+            _emailMode
+                ? 'The 6-digit code arrives by email.'
+                : 'The 6-digit code arrives by SMS.',
+            style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+          const SizedBox(height: 12),
           DtPrimaryButton(label: 'Send OTP', busy: _busy, onPressed: _send),
           const Row(children: [
             Expanded(child: Divider()),

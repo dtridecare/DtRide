@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
@@ -5,15 +6,22 @@ import 'splash_screen.dart';
 import 'driver_background.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  if (DtConfig.supabaseUrl.isEmpty || DtConfig.supabaseAnonKey.isEmpty) {
-    runApp(const _MissingConfigApp());
-    return;
-  }
-  await Supabase.initialize(url: DtConfig.supabaseUrl, anonKey: DtConfig.supabaseAnonKey);
-  await initDriverBackground();
-  await DtSounds.init();
-  runApp(const DriverApp());
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    if (DtConfig.supabaseUrl.isEmpty || DtConfig.supabaseAnonKey.isEmpty) {
+      runApp(const _MissingConfigApp());
+      return;
+    }
+    await Supabase.initialize(url: DtConfig.supabaseUrl, anonKey: DtConfig.supabaseAnonKey);
+    await initDriverBackground();
+    await DtSounds.init();
+    runApp(const DriverApp());
+  }, (error, stack) {
+    debugPrint('Uncaught: $error');
+  });
 }
 
 class _MissingConfigApp extends StatelessWidget {
@@ -32,9 +40,22 @@ class _MissingConfigApp extends StatelessWidget {
 class DriverApp extends StatelessWidget {
   const DriverApp({super.key});
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'DT Ride Driver',
-    theme: buildAppTheme(),
-    home: const DriverSplash(),
-  );
+  Widget build(BuildContext context) {
+    ErrorWidget.builder = (details) => Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('Something went wrong.\nRestart the app to continue.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.muted)),
+        ),
+      ),
+    );
+    return MaterialApp(
+      title: 'DT Ride Driver',
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
+      home: const DriverSplash(),
+    );
+  }
 }

@@ -13,6 +13,7 @@ class GeocodeException implements Exception {
 /// Swap OSM -> Google/Mapbox without touching ride logic.
 abstract class MapsAdapter {
   Future<({double lat, double lon, String label})> geocode(String address);
+  Future<String> reverse(double lat, double lon);
   Future<({int distM, int durS, String polyline})> route(
       double fromLat, double fromLon, double toLat, double toLon);
 }
@@ -63,6 +64,25 @@ class OsmAdapter implements MapsAdapter {
       rethrow;
     } catch (_) {
       throw GeocodeException('network', 'Map search failed — check connection and retry.');
+    }
+  }
+
+  @override
+  Future<String> reverse(double lat, double lon) async {
+    final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+      'lat': '$lat', 'lon': '$lon', 'format': 'jsonv2',
+    });
+    try {
+      final res = await _http.get(uri, headers: {'User-Agent': _ua, 'Accept-Language': 'en'}).timeout(
+        const Duration(seconds: 12));
+      if (res.statusCode != 200) throw StateError('${res.statusCode}');
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final name = (body['display_name'] ?? '') as String;
+      if (name.isEmpty) throw StateError('empty');
+      // Shorten: first two address parts read like a place, not coords.
+      return name.split(',').take(2).join(',').trim();
+    } catch (_) {
+      throw GeocodeException('network', 'Could not look up this pin — address kept as coordinates.');
     }
   }
 

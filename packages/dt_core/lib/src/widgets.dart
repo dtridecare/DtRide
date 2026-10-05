@@ -275,6 +275,79 @@ void showDtMessage(BuildContext context, String text, {bool error = false}) {
   ));
 }
 
+/// Expanding-ring radar shown while searching (finding driver, waiting offers).
+class DtRadar extends StatefulWidget {
+  final double size;
+  final Color color;
+  const DtRadar({super.key, this.size = 120, this.color = AppColors.accent});
+
+  @override
+  State<DtRadar> createState() => _DtRadarState();
+}
+
+class _DtRadarState extends State<DtRadar> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1800))
+      ..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: widget.size, width: widget.size,
+    child: AnimatedBuilder(
+      animation: _ctl,
+      builder: (_, __) => CustomPaint(
+        painter: _RadarPainter(_ctl.value, widget.color),
+        child: Center(
+          child: Container(
+            height: 18, width: 18,
+            decoration: BoxDecoration(
+                color: widget.color, shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3)),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _RadarPainter extends CustomPainter {
+  final double t;
+  final Color color;
+  _RadarPainter(this.t, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final maxR = size.width / 2;
+    for (var i = 0; i < 3; i++) {
+      final phase = (t + i / 3) % 1.0;
+      canvas.drawCircle(
+        c,
+        maxR * phase,
+        Paint()
+          ..color = color.withValues(alpha: (1 - phase) * 0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RadarPainter old) => old.t != t;
+}
+
 /// First-run permission gate: location + notifications with plain-language
 /// reasons, skip allowed, settings shortcut when permanently denied.
 class DtPermissionsScreen extends StatefulWidget {

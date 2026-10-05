@@ -4,6 +4,7 @@ import 'package:dt_core/dt_core.dart';
 import 'booking_screen.dart';
 import 'history_screen.dart';
 import 'login_screen.dart';
+import 'profile_screen.dart';
 import 'rider_kyc_screen.dart';
 
 /// Pack home: search, Home/Work/Saved chips, recent destinations.
@@ -17,12 +18,14 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
   DtProfile? _profile;
   String? _error;
   List<Ride> _recent = [];
+  bool _permsOk = true;
   final _search = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     PushService(Supabase.instance.client).init();
+    _checkPerms();
     final c = Supabase.instance.client;
     AuthService(c).currentProfile().then((p) {
       if (!mounted) return;
@@ -44,19 +47,123 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
     }).catchError((_) => null);
   }
 
+  Future<void> _checkPerms() async {
+    try {
+      final loc = await LocationService(Supabase.instance.client).ensurePermission();
+      if (!mounted) return;
+      setState(() => _permsOk = loc);
+    } catch (_) {}
+  }
+
   void _book([String? drop]) => Navigator.of(context).push(
     MaterialPageRoute(builder: (_) => BookingScreen(initialDrop: drop)));
 
+  Future<void> _logout() async {
+    await Supabase.instance.client.auth.signOut();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (_) => false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
+    drawer: Drawer(
+      child: SafeArea(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(children: [
+              CircleAvatar(
+                backgroundColor: AppColors.accent,
+                child: Text(
+                  ((_profile?.fullName ?? 'R').trim().isEmpty
+                          ? 'R'
+                          : _profile!.fullName!.trim()[0])
+                      .toUpperCase(),
+                  style: const TextStyle(
+                      color: AppColors.ink, fontWeight: FontWeight.w500)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_profile?.fullName ?? 'Rider',
+                          style:
+                              const TextStyle(fontWeight: FontWeight.w500)),
+                      Text(_profile?.phone ?? '',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.muted)),
+                    ]),
+              ),
+            ]),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: const Text('Profile'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const RiderProfileScreen()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.receipt_long_outlined),
+            title: const Text('My rides'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const HistoryScreen()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.support_agent_outlined),
+            title: const Text('Support'),
+            onTap: () {
+              Navigator.of(context).pop();
+              showDtMessage(context, 'Support: care@dtride.in');
+            },
+          ),
+          const Spacer(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: AppColors.danger),
+            title: const Text('Log out',
+                style: TextStyle(color: AppColors.danger)),
+            onTap: _logout,
+          ),
+        ]),
+      ),
+    ),
     body: SafeArea(
       child: Column(children: [
         Expanded(
-          child: Container(
-            color: const Color(0xFFECEEF0),
-            child: const Center(
-              child: Icon(Icons.map_outlined, size: 64, color: AppColors.muted)),
-          ),
+          child: Stack(children: [
+            Container(
+              color: const Color(0xFFECEEF0),
+              child: const Center(
+                child:
+                    Icon(Icons.map_outlined, size: 64, color: AppColors.muted)),
+            ),
+            Positioned(
+              left: 14,
+              top: 12,
+              child: Builder(
+                builder: (ctx) => GestureDetector(
+                  onTap: () => Scaffold.of(ctx).openDrawer(),
+                  child: Container(
+                    height: 40,
+                    width: 40,
+                    decoration: const BoxDecoration(
+                        color: Colors.white, shape: BoxShape.circle),
+                    child: const Icon(Icons.menu, size: 20),
+                  ),
+                ),
+              ),
+            ),
+          ]),
         ),
         Container(
           decoration: const BoxDecoration(
@@ -86,6 +193,23 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
             ),
             const SizedBox(height: 8),
             if (_error != null) DtBanner(kind: BannerKind.error, title: _error!),
+            if (!_permsOk)
+              GestureDetector(
+                onTap: () => Navigator.of(context)
+                    .push(MaterialPageRoute(
+                      builder: (ctx) => DtPermissionsScreen(
+                        onDone: () {
+                          Navigator.of(ctx).pop();
+                          _checkPerms();
+                        },
+                      ),
+                    ))
+                    .then((_) => _checkPerms()),
+                child: const DtBanner(
+                  kind: BannerKind.warn,
+                  title: 'Location is off — tap to enable',
+                  subtitle: 'Needed for GPS pickup and live tracking.'),
+              ),
             Wrap(
               spacing: 8,
               children: [

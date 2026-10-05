@@ -24,6 +24,7 @@ type RiderRow = {
 
 export default function KycPage() {
   const [kind, setKind] = useState<'drivers' | 'riders'>('drivers');
+  const [auto, setAuto] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [riders, setRiders] = useState<RiderRow[]>([]);
   const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected'>('pending');
@@ -46,6 +47,18 @@ export default function KycPage() {
     else setRiders((data ?? []) as RiderRow[]);
   };
   useEffect(() => { setDetails({}); setOpenId(null); if (kind === 'drivers') load(); else loadRiders(); }, [filter, kind]);
+  useEffect(() => {
+    db().from('app_config').select('value').eq('key', 'rider_kyc_auto_approve').single()
+      .then(({ data }) => setAuto(String(data?.value ?? 'false') === 'true'));
+  }, []);
+
+  const flipAuto = async () => {
+    setErr('');
+    const { error } = await db().from('app_config')
+      .update({ value: (!auto).toString() }).eq('key', 'rider_kyc_auto_approve');
+    if (error) setErr(error.message);
+    else setAuto(!auto);
+  };
 
   const toggle = async (id: string) => {
     if (openId === id) {
@@ -92,6 +105,15 @@ export default function KycPage() {
   return (
     <AdminGate>
       <h1 className="text-2xl font-bold mb-1">KYC approvals</h1>
+      <div className="card flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex-1 min-w-52">
+          <b>Rider auto-approve</b>
+          <div className="text-sm text-slate-500">When on, rider KYC approves instantly without review.</div>
+        </div>
+        <button className={auto ? 'btn-primary !px-3 !py-1' : 'btn-outline !px-3 !py-1'} onClick={flipAuto}>
+          {auto ? 'Automatic' : 'Manual'}
+        </button>
+      </div>
       <div className="flex gap-2 mb-4">
         {(['drivers', 'riders'] as const).map((k) => (
           <button key={k} onClick={() => setKind(k)}
