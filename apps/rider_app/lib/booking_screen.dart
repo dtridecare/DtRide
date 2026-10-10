@@ -31,6 +31,7 @@ class _BookingScreenState extends State<BookingScreen> {
   int _bid = 0;
   int _discount = 0;
   bool _pickupActive = true;
+  bool _kycOk = true;
   String? _error;
   bool _busy = false;
 
@@ -41,6 +42,12 @@ class _BookingScreenState extends State<BookingScreen> {
   void initState() {
     super.initState();
     if (widget.initialDrop != null) _drop.text = widget.initialDrop!;
+    AuthService(Supabase.instance.client).currentProfile().then((p) {
+      if (!mounted) return;
+      if (p != null && p.riderKycStatus != 'approved') {
+        setState(() => _kycOk = false);
+      }
+    }).catchError((_) => null);
     _booking.serviceAreas().then((a) {
       if (mounted) setState(() => _areas = a);
     }).catchError((_) => null);
@@ -127,6 +134,10 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _estimate() async {
+    if (!_kycOk) {
+      setState(() => _error = 'Verify your identity first — booking unlocks after approval.');
+      return;
+    }
     if (_pickup.text.trim().isEmpty || _drop.text.trim().isEmpty) {
       setState(() => _error = 'Enter pickup and drop.');
       return;

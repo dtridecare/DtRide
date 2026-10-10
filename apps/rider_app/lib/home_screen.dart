@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'booking_screen.dart';
+import 'emergency_contacts_screen.dart';
 import 'history_screen.dart';
 import 'login_screen.dart';
+import 'notifications_screen.dart';
 import 'profile_screen.dart';
 import 'rider_kyc_screen.dart';
+import 'settings_screen.dart';
+import 'support_screen.dart';
 
 /// Pack home: search, Home/Work/Saved chips, recent destinations.
 class RiderHomeScreen extends StatefulWidget {
@@ -120,11 +124,39 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
             },
           ),
           ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text('Notifications'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const RiderNotificationsScreen()));
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.support_agent_outlined),
             title: const Text('Support'),
             onTap: () {
               Navigator.of(context).pop();
-              showDtMessage(context, 'Support: care@dtride.in');
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const RiderSupportScreen()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.emergency_outlined),
+            title: const Text('Emergency contacts'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const EmergencyContactsScreen()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings_outlined),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const RiderSettingsScreen()));
             },
           ),
           const Spacer(),

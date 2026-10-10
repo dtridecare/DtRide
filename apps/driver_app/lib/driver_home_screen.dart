@@ -14,6 +14,8 @@ import 'requests_screen.dart';
 import 'earnings_screen.dart';
 import 'kyc_screen.dart';
 import 'notifications_screen.dart';
+import 'settings_screen.dart';
+import 'support_screen.dart';
 import 'driver_background.dart';
 
 /// Pack home: mini map, rides-left pill, online toggle, day stats.
@@ -243,7 +245,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   title: const Text('Support'),
                   onTap: () {
                     Navigator.of(context).pop();
-                    showDtMessage(context, 'Support: care@dtride.in');
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const DriverSupportScreen()));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: const Text('Settings'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const DriverSettingsScreen()));
                   },
                 ),
                 const Spacer(),

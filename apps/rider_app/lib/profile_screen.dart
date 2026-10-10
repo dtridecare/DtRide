@@ -15,6 +15,9 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _city = TextEditingController();
+  final _referral = TextEditingController();
+  String? _myCode;
+  bool _referred = false;
   String? _error;
   String? _notice;
   bool _busy = false;
@@ -36,6 +39,24 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
       if (mounted) setState(() { _error = '$e'; _loading = false; });
       return null;
     });
+    final c = Supabase.instance.client;
+    ReferralService(c).myCode().then((code) {
+      if (mounted) setState(() => _myCode = code);
+    }).catchError((_) => null);
+    ReferralService(c).alreadyReferred().then((r) {
+      if (mounted) setState(() => _referred = r);
+    }).catchError((_) => null);
+  }
+
+  Future<void> _claim() async {
+    if (_referral.text.trim().isEmpty) return;
+    setState(() { _error = null; _notice = null; });
+    try {
+      await ReferralService(Supabase.instance.client).claim(_referral.text.trim());
+      if (mounted) setState(() { _referred = true; _notice = 'Referral applied!'; });
+    } catch (e) {
+      setState(() => _error = '$e');
+    }
   }
 
   Future<void> _save() async {
@@ -58,8 +79,7 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    await Supabase.instance.client.auth.signOut();
+  Future<void> _logout() async {    await Supabase.instance.client.auth.signOut();
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -118,6 +138,53 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
             ],
             const SizedBox(height: 16),
             DtPrimaryButton(label: 'Save changes', busy: _busy, onPressed: _save),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Refer & earn',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w500, fontSize: 16)),
+                      const SizedBox(height: 4),
+                      if (_myCode != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                              border: Border.all(
+                                  style: BorderStyle.solid,
+                                  color: AppColors.ink),
+                              borderRadius: BorderRadius.circular(12)),
+                          child: Text(_myCode!,
+                              style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 3)),
+                        ),
+                      if (!_referred) ...[
+                        const SizedBox(height: 8),
+                        Row(children: [
+                          Expanded(
+                              child: TextField(
+                                  controller: _referral,
+                                  decoration: const InputDecoration(
+                                      hintText: "Friend's code"))),
+                          const SizedBox(width: 8),
+                          TextButton(
+                              onPressed: _claim,
+                              child: const Text('Apply')),
+                        ]),
+                      ] else
+                        const Text('Referral applied.',
+                            style: TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.w500)),
+                    ]),
+              ),
+            ),
             const SizedBox(height: 8),
             OutlinedButton(
               onPressed: _logout,

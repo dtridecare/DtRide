@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'splash_screen.dart';
@@ -16,9 +18,13 @@ Future<void> main() async {
       return;
     }
     await Supabase.initialize(url: DtConfig.supabaseUrl, anonKey: DtConfig.supabaseAnonKey);
-    await initDriverBackground();
-    await DtSounds.init();
-    runApp(const DriverApp());
+  await initDriverBackground();
+  await DtSounds.init();
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    DtSounds.enabled = prefs.getBool('chime_on') ?? true;
+  } catch (_) {}
+  runApp(const DriverApp());
   }, (error, stack) {
     debugPrint('Uncaught: $error');
   });

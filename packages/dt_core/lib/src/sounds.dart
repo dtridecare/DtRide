@@ -8,6 +8,8 @@ class DtSounds {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   static bool _ready = false;
+  /// User toggle (Settings). Off = silent local alerts.
+  static bool enabled = true;
 
   static Future<void> init() async {
     try {
@@ -30,7 +32,7 @@ class DtSounds {
   }
 
   static Future<void> alert({required String title, required String body}) async {
-    if (!_ready) return;
+    if (!_ready || !enabled) return;
     try {
       await _plugin.show(
         DateTime.now().millisecondsSinceEpoch ~/ 1000,

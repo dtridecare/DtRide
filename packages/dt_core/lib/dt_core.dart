@@ -19,3 +19,4 @@ export 'src/widgets.dart';
 export 'src/maps_adapter.dart';
 export 'src/onboarding_store.dart';
 export 'src/sounds.dart';
+export 'src/care_service.dart';

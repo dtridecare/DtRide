@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dt_core/dt_core.dart';
 import 'splash_screen.dart';
@@ -15,9 +17,13 @@ Future<void> main() async {
       runApp(const _MissingConfigApp());
       return;
     }
-    await Supabase.initialize(url: DtConfig.supabaseUrl, anonKey: DtConfig.supabaseAnonKey);
-    await DtSounds.init();
-    runApp(const RiderApp());
+  await Supabase.initialize(url: DtConfig.supabaseUrl, anonKey: DtConfig.supabaseAnonKey);
+  await DtSounds.init();
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    DtSounds.enabled = prefs.getBool('chime_on') ?? true;
+  } catch (_) {}
+  runApp(const RiderApp());
   }, (error, stack) {
     debugPrint('Uncaught: $error');
   });
