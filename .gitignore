@@ -13,3 +13,7 @@ supabase/.temp/
 
 # Next.js build info
 apps/admin-web/tsconfig.tsbuildinfo
+
+# Firebase (per-developer, contains API keys)
+google-services.json
+GoogleService-Info.plist
