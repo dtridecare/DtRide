@@ -37,6 +37,13 @@ serve(async (req) => {
       to: ride.driver_id ? [ride.driver_id] : [],
       title: "Offer accepted", body: `Rider accepted ${fare} — head to pickup`,
     },
+    // NEW EVENTS
+    driver_accept: { to: [ride.rider_id], title: "Driver accepted", body: `Your ${ride.category} is on the way · ${fare}` },
+    driver_arrive: { to: [ride.rider_id], title: "Driver arrived", body: `Share your OTP to start · ${fare}` },
+    ride_start: { to: [ride.rider_id], title: "Ride started", body: "Enjoy your trip — pay the driver directly" },
+    ride_complete: { to: [ride.rider_id], title: "Ride completed", body: `Please rate your driver · ${fare} paid direct` },
+    rider_cancel: { to: [ride.driver_id], title: "Ride cancelled", body: "The other party cancelled this ride" },
+    new_ride: { to: [ride.driver_id], title: "New ${ride.category} request", body: `${ride.pickup_text ?? "Pickup"} → ${ride.drop_text ?? "Drop"}` },
   };
   const m = msgs[event];
   if (!m || m.to.length === 0) return Response.json({ ok: true, skipped: true });

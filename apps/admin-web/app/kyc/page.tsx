@@ -132,8 +132,7 @@ export default function KycPage() {
           </button>
         ))}
       </div>
-      <input className="input mb-4 w-full max-w-md" placeholder="Decision note (optional, e.g. rejection reason)"
-        value={note} onChange={(e) => setNote(e.target.value)} />
+      <input className="input mb-4 w-full max-w-md" placeholder="Decision note (optional, e.g. rejection reason)" value={note} onChange={(e) => setNote(e.target.value)} />
       {err && <p className="text-red-600 text-sm mb-4">{err}</p>}
       <div className="grid gap-3">
         {rows.map((r) => {
@@ -178,7 +177,6 @@ export default function KycPage() {
                         {d.docs.map((doc) => (
                           <a key={doc.name} href={doc.url} target="_blank" rel="noreferrer"
                             className="block rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-400">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={doc.url} alt={doc.name} className="h-28 w-full object-cover" />
                             <div className="px-2 py-1 text-xs truncate text-slate-600">{doc.name}</div>
                           </a>
@@ -232,7 +230,6 @@ export default function KycPage() {
                         {d.docs.map((doc) => (
                           <a key={doc.name} href={doc.url} target="_blank" rel="noreferrer"
                             className="block rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-400">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={doc.url} alt={doc.name} className="h-28 w-full object-cover" />
                             <div className="px-2 py-1 text-xs truncate text-slate-600">{doc.name}</div>
                           </a>
