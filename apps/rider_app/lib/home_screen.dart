@@ -25,11 +25,16 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
   bool _permsOk = true;
   final _search = TextEditingController();
 
+  // Platform announcements
+  Map<String, dynamic>? _announcement;
+  static const _announcementKey = '_platform_announcement';
+
   @override
   void initState() {
     super.initState();
     PushService(Supabase.instance.client).init();
     _checkPerms();
+    _loadAnnouncements();
     final c = Supabase.instance.client;
     AuthService(c).currentProfile().then((p) {
       if (!mounted) return;
@@ -59,6 +64,39 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
     } catch (_) {}
   }
 
+  void _loadAnnouncements() async {
+    final c = Supabase.instance.client;
+    try {
+      final snap = await c.from('platform_announcements').select()
+          .eq('target_role', 'rider')
+          .or('target_role.eq.both')
+          .expires_at_gte('now')
+          .order('is_pinned', ascending: false).limit(1);
+      if (mounted) {
+        final ann = snap.isNotEmpty ? snap[0] : null;
+        if (ann != null) {
+          setState(() => _announcement = ann);
+        }
+      }
+    } catch (_) {}
+  }
+
+  Widget _announcementBanner(BuildContext context) => _announcement != null
+      ? DtBanner(
+          kind: _bannerKind(_announcement!['kind'] as String),
+          title: _announcement!['title'] as String,
+          subtitle: _announcement!['subtitle'] as String?,
+        )
+      : const SizedBox.shrink();
+
+  BannerKind _bannerKind(String kind) => switch (kind) {
+        'info' => BannerKind.info,
+        'warn' => BannerKind.warn,
+        'error' => BannerKind.error,
+        'success' => BannerKind.success,
+        _ => BannerKind.info,
+      };
+
   void _book([String? drop]) => Navigator.of(context).push(
     MaterialPageRoute(builder: (_) => BookingScreen(initialDrop: drop)));
 
@@ -83,89 +121,30 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
                 backgroundColor: AppColors.accent,
                 child: Text(
                   ((_profile?.fullName ?? 'R').trim().isEmpty
-                          ? 'R'
-                          : _profile!.fullName!.trim()[0])
+                      ? 'R'
+                      : _profile!.fullName!.trim()[0])
                       .toUpperCase(),
                   style: const TextStyle(
-                      color: AppColors.ink, fontWeight: FontWeight.w500)),
+                      color: AppColors.ink, fontWeight: FontWeight.w500),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_profile?.fullName ?? 'Rider',
-                          style:
-                              const TextStyle(fontWeight: FontWeight.w500)),
-                      Text(_profile?.phone ?? '',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.muted)),
-                    ]),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_profile?.fullName ?? 'Rider',
+                        style:
+                            const TextStyle(fontWeight: FontWeight.w500)),
+                    Text(_profile?.phone ?? '',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.muted)),
+                  ],
+                ),
               ),
             ]),
           ),
           const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: const Text('Profile'),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const RiderProfileScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.receipt_long_outlined),
-            title: const Text('My rides'),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const HistoryScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.notifications_outlined),
-            title: const Text('Notifications'),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const RiderNotificationsScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.support_agent_outlined),
-            title: const Text('Support'),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const RiderSupportScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.emergency_outlined),
-            title: const Text('Emergency contacts'),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const EmergencyContactsScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.settings_outlined),
-            title: const Text('Settings'),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const RiderSettingsScreen()));
-            },
-          ),
-          const Spacer(),
-          ListTile(
-            leading: const Icon(Icons.logout, color: AppColors.danger),
-            title: const Text('Log out',
-                style: TextStyle(color: AppColors.danger)),
-            onTap: _logout,
-          ),
         ]),
       ),
     ),
@@ -203,6 +182,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _announcementBanner(context),
             const Text('Where to?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
             const SizedBox(height: 12),
             GestureDetector(
@@ -219,6 +199,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
                     child: Text(
                       _search.text.isEmpty ? 'Search destination' : _search.text,
                       style: const TextStyle(color: AppColors.muted)),
+                    ),
                   ),
                 ]),
               ),
