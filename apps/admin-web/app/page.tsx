@@ -9,7 +9,7 @@ const STATS = [
   { key: 'subs', label: 'Active subscriptions', color: 'bg-indigo-500' },
 ] as const;
 
-export default function Home() {
+export default async function Home() {
   const db = supabaseAdmin();
   const [{ count: pendingKyc }, { count: online }, { count: activeSubs }, { data: recent }, { data: drivers }] =
     await Promise.all([
@@ -23,11 +23,23 @@ export default function Home() {
     ]);
   const values: Record<string, number | null> = { kyc: pendingKyc, online, subs: activeSubs };
 
+  // Fetch announcements
+  let announcements: string[] = [];
+  try {
+    const supa = supabaseAdmin();
+    const { data } = await supa.from('platform_announcements').select('title').order('is_pinned', { ascending: false }).limit(3);
+    if (data) announcements = data.map((d: any) => d.title);
+  } catch (_) {}
+
   return (
     <AdminGate signedOut={<LoginForm />}>
       <div>
         <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
         <p className="text-sm text-slate-500 mb-6">Live platform overview — subscription model, no commission.</p>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-sm text-slate-500">Search:</span>
+          <input type="text" placeholder="Search rides, drivers, KYC..." className="border border-slate-300 rounded-lg px-3 py-1 focus-outline-none bg-slate-50 flex-1" />
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {STATS.map((s) => (
             <div key={s.key} className="card flex items-center gap-4">
@@ -42,7 +54,7 @@ export default function Home() {
         <div className="card !p-0 overflow-hidden">
           <div className="px-5 py-4 font-semibold border-b border-slate-100">Recent rides</div>
           <div className="overflow-x-auto">
-          <table className="w-full sm:table-fixed">
+          <table className="w-full">
             <thead><tr><th className="th">Ride</th><th className="th">Status</th><th className="th">Cat / Mode</th><th className="th">Fare</th><th className="th">Created</th></tr></thead>
             <tbody>
               {(recent ?? []).map((r: { id: string; status: string; category: string; mode: string; fare_estimate_rs: number | null; created_at: string }) => (
@@ -62,7 +74,7 @@ export default function Home() {
         <div className="card !p-0 overflow-hidden mt-6">
           <div className="px-5 py-4 font-semibold border-b border-slate-100">Drivers (latest 20)</div>
           <div className="overflow-x-auto">
-          <table className="w-full sm:table-fixed">
+          <table className="w-full">
             <thead><tr><th className="th">Driver</th><th className="th">Phone</th><th className="th">KYC</th><th className="th">Category</th><th className="th">Online</th><th className="th">Strikes</th></tr></thead>
             <tbody>
               {(drivers ?? []).map((d: { id: string; kyc_status: string; vehicle_category: string; upi_id: string | null; online: boolean; strikes: number; profiles: any }) => {
