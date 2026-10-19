@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../lib/supabase';
-import { AdminGate } from '../lib/AdminGate';
+import AdminGate from '../lib/AdminGate';
 
 export const dynamic = 'force-dynamic';
 
