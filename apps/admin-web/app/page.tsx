@@ -1,105 +1,94 @@
 import { supabaseAdmin } from '../lib/supabase';
-import AdminGate from '../lib/AdminGate';
+import { AdminGate } from '../lib/AdminGate';
 
 export const dynamic = 'force-dynamic';
 
 const STATS = [
   { key: 'kyc', label: 'Pending KYC', color: 'bg-amber-500' },
-  { key: 'online', label: 'Drivers online', color: 'bg-emerald-500' },
-  { key: 'subs', label: 'Active subscriptions', color: 'bg-indigo-500' },
+  { key: 'online', label: 'Drivers Online', color: 'bg-emerald-500' },
+  { key: 'subs', label: 'Active Subscriptions', color: 'bg-indigo-500' },
+  { key: 'rides', label: 'Active Rides', color: 'bg-purple-500' },
 ] as const;
 
 export default async function Home() {
-  const db = supabaseAdmin();
+  const db = supabaseAdmin as any;
   const [{ count: pendingKyc }, { count: online }, { count: activeSubs }, { data: recent }, { data: drivers }] =
     await Promise.all([
       db.from('drivers').select('*', { count: 'exact', head: true }).eq('kyc_status', 'pending'),
       db.from('drivers').select('*', { count: 'exact', head: true }).eq('online', true),
       db.from('driver_subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-      db.from('rides').select('id,status,category,mode,fare_estimate_rs,created_at')
-        .order('created_at', { ascending: false }).limit(8),
-      db.from('drivers').select('id,kyc_status,vehicle_category,upi_id,online,strikes,blocked_until,profiles!inner(full_name,phone)')
-        .order('created_at', { ascending: false }).limit(20),
+      db.from('rides').select('id,status,category,mode,fare_estimate_rs,created_at').order('created_at', { ascending: false }).limit(8),
+      db.from('drivers').select('id,kyc_status,vehicle_category,online,strikes,blocked_until,profiles!inner(full_name,phone)').order('created_at', { ascending: false }).limit(20),
     ]);
-  const values: Record<string, number | null> = { kyc: pendingKyc, online, subs: activeSubs };
-
-  // Fetch announcements
-  let announcements: string[] = [];
-  try {
-    const supa = supabaseAdmin();
-    const { data } = await supa.from('platform_announcements').select('title').order('is_pinned', { ascending: false }).limit(3);
-    if (data) announcements = data.map((d: any) => d.title);
-  } catch (_) {}
+  const values: Record<string, number | null> = { kyc: pendingKyc, online, subs: activeSubs, rides: recent?.length ?? 0 };
 
   return (
-    <AdminGate signedOut={<LoginForm />}>
-      <div>
-        <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
+    <AdminGate>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
         <p className="text-sm text-slate-500 mb-6">Live platform overview — subscription model, no commission.</p>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-sm text-slate-500">Search:</span>
-          <input type="text" placeholder="Search rides, drivers, KYC..." className="border border-slate-300 rounded-lg px-3 py-1 focus-outline-none bg-slate-50 flex-1" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
           {STATS.map((s) => (
-            <div key={s.key} className="card flex items-center gap-4">
-              <span className={`h-11 w-11 rounded-lg ${s.color} opacity-90`} />
-              <div>
-                <div className="text-3xl font-bold">{values[s.key] ?? '—'}</div>
+            <div key={s.key} className="card flex flex-col items-start gap-2 p-6">
+              <span className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg ${s.color}`} />
+              <div className="mt-2">
+                <div className="text-2xl font-bold text-slate-900">{values[s.key] ?? '—'}</div>
                 <div className="text-sm text-slate-500">{s.label}</div>
               </div>
             </div>
           ))}
         </div>
-        <div className="card !p-0 overflow-hidden">
-          <div className="px-5 py-4 font-semibold border-b border-slate-100">Recent rides</div>
-          <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead><tr><th className="th">Ride</th><th className="th">Status</th><th className="th">Cat / Mode</th><th className="th">Fare</th><th className="th">Created</th></tr></thead>
-            <tbody>
-              {(recent ?? []).map((r: { id: string; status: string; category: string; mode: string; fare_estimate_rs: number | null; created_at: string }) => (
-                <tr key={r.id}>
-                  <td className="td font-mono">{r.id.slice(0, 8)}</td>
-                  <td className="td"><span className="badge bg-slate-100 text-slate-700">{r.status}</span></td>
-                  <td className="td">{r.category} · {r.mode}</td>
-                  <td className="td">₹{r.fare_estimate_rs ?? '?'}</td>
-                  <td className="td text-slate-500">{new Date(r.created_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="card p-6">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-lg font-bold text-slate-900">Recent Rides</h3>
           </div>
-          {(recent ?? []).length === 0 && <p className="p-5 text-sm text-slate-500">No rides yet.</p>}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-slate-400 border-b border-slate-100">
+                <tr><th className="th">Ride</th><th className="th">Status</th><th className="th">Category / Mode</th><th className="th">Fare</th><th className="th">Created</th></tr>
+              </thead>
+              <tbody>
+                {(recent ?? []).map((r: any) => (
+                  <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                    <td className="px-4 py-3 font-mono text-sm">{r.id.slice(0, 8)}</td>
+                    <td className="px-4 py-3"><span className={`badge ${r.status === 'requested' ? 'bg-amber-100 text-amber-700' : r.status === 'accepted' ? 'bg-sky-100 text-sky-700' : r.status === 'arrived' ? 'bg-violet-100 text-violet-700' : r.status === 'started' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{r.status}</span></td>
+                    <td className="px-4 py-3">{r.category} · {r.mode}</td>
+                    <td className="px-4 py-3 font-medium">₹{r.fare_estimate_rs ?? '?'}</td>
+                    <td className="px-4 py-3 text-slate-500 text-sm">{new Date(r.created_at).toLocaleString()}</td>
+                  </tr>
+                ))}
+                {recent.length === 0 && <tr><td className="px-4 py-3 text-slate-500" colSpan={5}>No rides yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div className="card !p-0 overflow-hidden mt-6">
-          <div className="px-5 py-4 font-semibold border-b border-slate-100">Drivers (latest 20)</div>
-          <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead><tr><th className="th">Driver</th><th className="th">Phone</th><th className="th">KYC</th><th className="th">Category</th><th className="th">Online</th><th className="th">Strikes</th></tr></thead>
-            <tbody>
-              {(drivers ?? []).map((d: { id: string; kyc_status: string; vehicle_category: string; upi_id: string | null; online: boolean; strikes: number; profiles: any }) => {
-                const prof = profs => profs?.[0]?.full_name ?? '—';
-                return (
-                <tr key={d.id}>
-                  <td className="td font-medium">{prof(d.profiles)}</td>
-                  <td className="td">{d.profiles?.[0]?.phone ?? '—'}</td>
-                  <td className="td">
-                    <span className={`badge ${d.kyc_status === 'approved' ? 'bg-emerald-100 text-emerald-700' : d.kyc_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {d.kyc_status}
-                    </span>
-                  </td>
-                  <td className="td">{d.vehicle_category}</td>
-                  <td className="td">{d.online
-                    ? <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" title="online" />
-                    : <span className="text-slate-300">—</span>}</td>
-                  <td className="td">{d.strikes}</td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="card p-6">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-lg font-bold text-slate-900">Latest Drivers</h3>
           </div>
-          {(drivers ?? []).length === 0 && <p className="p-5 text-sm text-slate-500">No drivers yet.</p>}
+          <div className="space-y-2">
+            {drivers.map((d: any) => {
+              const prof = d.profiles?.[0];
+              return (
+                <div key={d.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-slate-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                    {prof?.full_name?.[0] || '?'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium text-slate-900">{prof.full_name ?? 'Unknown'}</span>
+                      <span className={`text-xs font-medium ${d.kyc_status === 'approved' ? 'text-emerald-600' : d.kyc_status === 'rejected' ? 'text-red-600' : 'text-amber-600'}`}>{d.kyc_status}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <span className={`inline-block h-1 w-1 rounded-full ${d.online ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                      <span>{d.online ? 'Online' : 'Offline'}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-500">{d.vehicle_category}</td>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </AdminGate>
