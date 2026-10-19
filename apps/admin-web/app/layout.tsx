@@ -1,6 +1,6 @@
 import './globals.css';
 import AdminLayout from './components/admin-layout';
-import { AdminGate } from './lib/AdminGate';
+import AdminGate from './lib/AdminGate';
 
 export const dynamic = 'force-dynamic';
 
