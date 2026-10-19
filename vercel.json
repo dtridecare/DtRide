@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd apps/admin-web && next build",
+  "outputDirectory": "apps/admin-web/.next",
+  "installCommand": "cd apps/admin-web && npm install"
+}
